@@ -46,6 +46,17 @@ func attendanceCheckpointSchema(db SQLiteDB) error {
 			return err
 		}
 	}
+	columns, err := db.Query("PRAGMA table_info(oa_time_device)")
+	if err != nil { return err }
+	hasTimezone := false
+	for _, col := range columns {
+		if rowString(col, "name") == "timezone" { hasTimezone = true; break }
+	}
+	if !hasTimezone {
+		if err := db.Exec(`ALTER TABLE oa_time_device ADD COLUMN timezone TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh'`); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
