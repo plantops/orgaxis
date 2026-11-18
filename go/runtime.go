@@ -149,6 +149,14 @@ func runApp(ctx context.Context, c Config, ready func()) error {
 	if e = attendanceSchema(db); e != nil {
 		return e
 	}
+	if backup, be := backupBeforeCheckpoint(db, dbPath); be != nil {
+		return be
+	} else if backup != "" {
+		log.Printf("Backup before v0.8 device checkpoint migration: %s", backup)
+	}
+	if e = attendanceCheckpointSchema(db); e != nil {
+		return e
+	}
 	if e = bootstrapUsers(db, c.Data); e != nil {
 		return e
 	}
