@@ -30,3 +30,19 @@ func TestPullRejectsInsecureEndpoint(t *testing.T) {
 		t.Fatalf("expected TLS restriction: %v", err)
 	}
 }
+
+func TestPullRejectsMultipleJSONDocumentsAndCredentialURL(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"events":[],"next_cursor":"c1"}{"events":[],"next_cursor":"c2"}`))
+	}))
+	defer server.Close()
+	_, err := (HTTPPullReader{Endpoint: server.URL}).Fetch(context.Background(), "")
+	if err == nil || !strings.Contains(err.Error(), "exactly one JSON") {
+		t.Fatalf("multiple documents unexpectedly accepted: %v", err)
+	}
+	_, err = (HTTPPullReader{Endpoint: "https://user:password@example.com/api"}).Fetch(context.Background(), "")
+	if err == nil || !strings.Contains(err.Error(), "invalid") {
+		t.Fatalf("URL userinfo unexpectedly accepted: %v", err)
+	}
+}
