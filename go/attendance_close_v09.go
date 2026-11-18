@@ -36,6 +36,40 @@ func timeLedgerSchema(db SQLiteDB) error {
 			prepared_by TEXT NOT NULL, prepared_at TEXT NOT NULL,
 			locked_by TEXT, locked_at TEXT,
 			PRIMARY KEY(tenant_id,person_id,period))`,
+		`CREATE TRIGGER IF NOT EXISTS oa_time_close_immutable_update BEFORE UPDATE ON oa_time_month_close
+			WHEN OLD.status='LOCKED' BEGIN SELECT RAISE(ABORT,'locked time ledger'); END`,
+		`CREATE TRIGGER IF NOT EXISTS oa_time_close_immutable_delete BEFORE DELETE ON oa_time_month_close
+			BEGIN SELECT RAISE(ABORT,'time ledger history cannot be deleted'); END`,
+		`CREATE TRIGGER IF NOT EXISTS oa_time_plan_lock_insert BEFORE INSERT ON oa_time_day_plan
+			WHEN EXISTS(SELECT 1 FROM oa_time_month_close c
+				WHERE c.tenant_id=NEW.tenant_id AND c.person_id=NEW.person_id
+				AND c.period=substr(NEW.work_date,1,7) AND c.status='LOCKED')
+			BEGIN SELECT RAISE(ABORT,'time day plan locked'); END`,
+		`CREATE TRIGGER IF NOT EXISTS oa_time_plan_lock_update BEFORE UPDATE ON oa_time_day_plan
+			WHEN EXISTS(SELECT 1 FROM oa_time_month_close c
+				WHERE c.tenant_id=OLD.tenant_id AND c.person_id=OLD.person_id
+				AND c.period=substr(OLD.work_date,1,7) AND c.status='LOCKED')
+			BEGIN SELECT RAISE(ABORT,'time day plan locked'); END`,
+		`CREATE TRIGGER IF NOT EXISTS oa_time_plan_lock_delete BEFORE DELETE ON oa_time_day_plan
+			WHEN EXISTS(SELECT 1 FROM oa_time_month_close c
+				WHERE c.tenant_id=OLD.tenant_id AND c.person_id=OLD.person_id
+				AND c.period=substr(OLD.work_date,1,7) AND c.status='LOCKED')
+			BEGIN SELECT RAISE(ABORT,'time day plan locked'); END`,
+		`CREATE TRIGGER IF NOT EXISTS oa_time_roster_lock_insert BEFORE INSERT ON oa_time_roster
+			WHEN EXISTS(SELECT 1 FROM oa_time_month_close c
+				WHERE c.tenant_id=NEW.tenant_id AND c.person_id=NEW.person_id
+				AND c.period=substr(NEW.work_date,1,7) AND c.status='LOCKED')
+			BEGIN SELECT RAISE(ABORT,'time roster locked'); END`,
+		`CREATE TRIGGER IF NOT EXISTS oa_time_roster_lock_update BEFORE UPDATE ON oa_time_roster
+			WHEN EXISTS(SELECT 1 FROM oa_time_month_close c
+				WHERE c.tenant_id=OLD.tenant_id AND c.person_id=OLD.person_id
+				AND c.period=substr(OLD.work_date,1,7) AND c.status='LOCKED')
+			BEGIN SELECT RAISE(ABORT,'time roster locked'); END`,
+		`CREATE TRIGGER IF NOT EXISTS oa_time_roster_lock_delete BEFORE DELETE ON oa_time_roster
+			WHEN EXISTS(SELECT 1 FROM oa_time_month_close c
+				WHERE c.tenant_id=OLD.tenant_id AND c.person_id=OLD.person_id
+				AND c.period=substr(OLD.work_date,1,7) AND c.status='LOCKED')
+			BEGIN SELECT RAISE(ABORT,'time roster locked'); END`,
 	} {
 		if err := db.Exec(sql); err != nil { return err }
 	}
