@@ -649,6 +649,17 @@ func (s *Service) routes() http.Handler {
 	mux.HandleFunc("/v2/", func(w http.ResponseWriter, r *http.Request) {
 		s.protected(w, r, func(p *Principal) (any, error) { return s.v6API(p, r) })
 	})
+	mux.HandleFunc("GET /time", page("time.html"))
+	mux.HandleFunc("GET /assets/time.css", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := builtIn.ReadFile("assets/time.css")
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		w.Write(b)
+	})
+	mux.HandleFunc("GET /assets/time.js", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := builtIn.ReadFile("assets/time.js")
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Write(b)
+	})
 	mux.HandleFunc("GET /docs", page("docs.html"))
 	mux.HandleFunc("GET /logs", page("logs.html"))
 	mux.HandleFunc("GET /v1/system/status", func(w http.ResponseWriter, r *http.Request) {

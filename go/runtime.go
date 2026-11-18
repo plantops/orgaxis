@@ -141,7 +141,18 @@ func runApp(ctx context.Context, c Config, ready func()) error {
 	if e = secureSchema(db); e != nil {
 		return e
 	}
+	if backup, be := backupBeforeAttendance(db, dbPath); be != nil {
+		return be
+	} else if backup != "" {
+		log.Printf("Backup before v0.7 time schema: %s", backup)
+	}
+	if e = attendanceSchema(db); e != nil {
+		return e
+	}
 	if e = bootstrapUsers(db, c.Data); e != nil {
+		return e
+	}
+	if e = seedAttendanceDemo(db); e != nil {
 		return e
 	}
 	if e = seedV6Cases(db); e != nil {
