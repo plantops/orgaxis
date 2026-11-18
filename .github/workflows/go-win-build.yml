@@ -21,6 +21,7 @@ jobs:
           go-version-file: go/go.mod
       - name: Generate embedded synthetic seed
         run: |
+          ORGAXIS_TENANT_ID=tenant-cfc-pilot \
           ORGAXIS_SEED_PROFILE=single_company \
           ORGAXIS_TENANT_CODE=CFCPILOT \
           ORGAXIS_TENANT_NAME="Cement Factory Pilot Tenant" \
