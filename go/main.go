@@ -24,16 +24,16 @@ import (
 	"time"
 )
 
-//go:embed assets/*.html assets/seed.sqlite3
+//go:embed assets/*.html assets/*.js assets/*.css assets/seed.sqlite3 assets/*.gz
 var builtIn embed.FS
 
 const tenantID = "tenant-cfc-pilot"
 const todayFallback = "2026-11-18"
 
 type Service struct {
-	db  SQLiteDB
-	mu  sync.Mutex
-	key string
+	db   SQLiteDB
+	mu   sync.Mutex
+	key  string
 	port int
 }
 type APIError struct {
@@ -541,6 +541,16 @@ func (s *Service) routes() http.Handler {
 			w.Write(b)
 		}
 	}
+	mux.HandleFunc("GET /assets/app.css", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := builtIn.ReadFile("assets/app.css")
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		w.Write(b)
+	})
+	mux.HandleFunc("GET /assets/app.js", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := builtIn.ReadFile("assets/app.js")
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Write(b)
+	})
 	mux.HandleFunc("GET /{$}", page("hero.html"))
 	mux.HandleFunc("GET /app", page("index.html"))
 	mux.HandleFunc("GET /docs", page("docs.html"))
@@ -633,6 +643,8 @@ func (s *Service) routes() http.Handler {
 					return nil, e
 				}
 				return s.changeReporting(v.Code, v.Supervisor, d)
+			case (p == "/v1/people/search" || strings.HasPrefix(p, "/v1/people/detail/")) && r.Method == "GET":
+				return s.moduleAPI(r)
 			case strings.HasPrefix(p, "/v1/people/") && r.Method == "GET":
 				bits := strings.Split(strings.Trim(p, "/"), "/")
 				if len(bits) != 4 {
@@ -664,7 +676,7 @@ func (s *Service) routes() http.Handler {
 					return s.directReports(person, date, limit, offset)
 				}
 			}
-			return nil, fail(404, "Unknown endpoint")
+			return s.moduleAPI(r)
 		})
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -728,6 +740,14 @@ func main() {
 		log.Fatal(e)
 	}
 	defer db.Close()
+	if backup, be := backupBeforeUpgrade(db, dbPath); be != nil {
+		log.Fatal(be)
+	} else if backup != "" {
+		log.Printf("Demo database backup created: %s", backup)
+	}
+	if e := enhanceDB(db); e != nil {
+		log.Fatal(e)
+	}
 	apiKey := *key
 	if apiKey == "" {
 		apiKey = os.Getenv("ORGAXIS_API_KEY")

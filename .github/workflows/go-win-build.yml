@@ -28,6 +28,14 @@ jobs:
           ORGAXIS_DEMO_COMPANY_CODE=CFCPILOT \
           ORGAXIS_DEMO_COMPANY_NAME="Cement Factory Pilot (SYNTHETIC)" \
           python3 ../seed.py --db assets/seed.sqlite3
+      - name: Populate operational HR module fixtures and backfill
+        run: |
+          python3 enrich_seed.py
+          python3 enrich_extended.py
+          python3 make_demo_assets.py
+      - name: Validate JavaScript syntax
+        run: |
+          node --check assets/app.js
       - name: Prepare SQLite headers for CGO tests
         run: sudo apt-get update -qq && sudo apt-get install -y libsqlite3-dev pkg-config
       - name: Test Go API (Linux)

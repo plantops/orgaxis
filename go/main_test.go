@@ -60,7 +60,7 @@ func TestServeHeroAndApp(t *testing.T) {
 		}
 	}
 	_, hero := serve(t, s, "GET", "/", "", false)
-	if !bytes.Contains(hero, []byte("Một tổ chức")) || !bytes.Contains(hero, []byte("data-state")) {
+	if !bytes.Contains(hero, []byte("Tổ chức luôn thay đổi")) || !bytes.Contains(hero, []byte("data-date")) {
 		t.Fatal("missing hero copy or interactive timeline")
 	}
 }
