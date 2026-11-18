@@ -34,6 +34,7 @@ type Service struct {
 	db  SQLiteDB
 	mu  sync.Mutex
 	key string
+	port int
 }
 type APIError struct {
 	Status  int
@@ -544,7 +545,7 @@ func (s *Service) routes() http.Handler {
 	mux.HandleFunc("GET /app", page("index.html"))
 	mux.HandleFunc("GET /docs", page("docs.html"))
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		response(w, 200, map[string]any{"status": "ok", "mode": "local-synthetic-demo", "synthetic_data": true, "database": "sqlite", "port": 6666})
+		response(w, 200, map[string]any{"status": "ok", "mode": "local-synthetic-demo", "synthetic_data": true, "database": "sqlite", "port": s.port})
 	})
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
 		s.api(w, r, func() (any, error) {
@@ -703,7 +704,7 @@ func launchBrowser(url string) {
 	}
 }
 func main() {
-	port := flag.Int("port", 6666, "Local HTTP port (default 6666)")
+	port := flag.Int("port", 8765, "Local HTTP port (default 8765)")
 	data := flag.String("data", "", "Data directory (default ./data beside executable)")
 	key := flag.String("api-key", "", "API key for local demo (default ORGAXIS_API_KEY or demo-local-key)")
 	noBrowser := flag.Bool("no-browser", false, "Do not open the browser automatically")
@@ -734,7 +735,7 @@ func main() {
 	if apiKey == "" {
 		apiKey = "demo-local-key"
 	}
-	service := &Service{db: db, key: apiKey}
+	service := &Service{db: db, key: apiKey, port: *port}
 	ln, e := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
 	if e != nil {
 		log.Fatal(e)
