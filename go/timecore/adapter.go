@@ -36,7 +36,7 @@ type HTTPPullReader struct {
 
 func (a HTTPPullReader) Fetch(ctx context.Context, cursor string) (DevicePage, error) {
 	u, err := url.Parse(a.Endpoint)
-	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+	if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && u.Scheme != "http") {
 		return DevicePage{}, errors.New("invalid device API endpoint")
 	}
 	// Plain HTTP is supported only for explicitly configured loopback lab fixtures.
@@ -78,6 +78,10 @@ func (a HTTPPullReader) Fetch(ctx context.Context, cursor string) (DevicePage, e
 	d.DisallowUnknownFields()
 	if err = d.Decode(&page); err != nil {
 		return DevicePage{}, err
+	}
+	var extra any
+	if err = d.Decode(&extra); err != io.EOF {
+		return DevicePage{}, errors.New("device API must contain exactly one JSON document")
 	}
 	if len(page.Events) > 2000 {
 		return DevicePage{}, errors.New("device API page over limit")

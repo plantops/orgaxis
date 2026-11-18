@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+	_ "time/tzdata"
 )
 
 // Attendance v0.7 is a synthetic-data integration contract. It does NOT
@@ -14,7 +15,7 @@ import (
 // Raw device events are retained with source provenance and stable event keys.
 func attendanceSchema(db SQLiteDB) error {
 	statements := []string{
-		`CREATE TABLE IF NOT EXISTS oa_time_device(tenant_id TEXT NOT NULL,device_id TEXT NOT NULL,site_id TEXT NOT NULL,description TEXT NOT NULL,source_type TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(tenant_id,device_id))`,
+		`CREATE TABLE IF NOT EXISTS oa_time_device(tenant_id TEXT NOT NULL,device_id TEXT NOT NULL,site_id TEXT NOT NULL,description TEXT NOT NULL,source_type TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,timezone TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh',PRIMARY KEY(tenant_id,device_id))`,
 		`CREATE TABLE IF NOT EXISTS oa_badge_binding(tenant_id TEXT NOT NULL,device_id TEXT NOT NULL,badge_id TEXT NOT NULL,person_id TEXT NOT NULL,valid_from TEXT NOT NULL,valid_to TEXT,PRIMARY KEY(tenant_id,device_id,badge_id,valid_from))`,
 		`CREATE TABLE IF NOT EXISTS oa_raw_punch(tenant_id TEXT NOT NULL,source TEXT NOT NULL,device_id TEXT NOT NULL,event_id TEXT NOT NULL,badge_id TEXT NOT NULL,person_id TEXT NOT NULL,direction TEXT NOT NULL,occurred_at_utc TEXT NOT NULL,received_at_utc TEXT NOT NULL,PRIMARY KEY(tenant_id,source,device_id,event_id))`,
 		`CREATE INDEX IF NOT EXISTS ix_oa_punch_person_at ON oa_raw_punch(tenant_id,person_id,occurred_at_utc)`,
@@ -35,27 +36,29 @@ func attendanceSchema(db SQLiteDB) error {
 type DeviceBatch struct {
 	Source   string `json:"source"`
 	DeviceID string `json:"device_id"`
-	Events   []struct {
-		EventID    string `json:"event_id"`
-		BadgeID    string `json:"badge_id"`
-		Direction  string `json:"direction"`
-		OccurredAt string `json:"occurred_at"` // RFC3339 offset required
-	} `json:"events"`
+	Events   []timecore.DeviceEvent `json:"events"`
 }
 
 var sourceIdentifier = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,80}$`)
 
 func (s *Service) ingestPunches(batch DeviceBatch, actor string) (any, error) {
+	return s.ingestPunchesWithCheckpoint(batch, actor, nil)
+}
+
+// cp is nil for interactive import; non-nil for a device pull with transactional cursor commit.
+func (s *Service) ingestPunchesWithCheckpoint(batch DeviceBatch, actor string, cp *pullCheckpoint) (any, error) {
 	if !sourceIdentifier.MatchString(batch.Source) || !sourceIdentifier.MatchString(batch.DeviceID) || len(batch.Events) == 0 || len(batch.Events) > 2000 {
 		return nil, fail(422, "Invalid source, device or batch size (1..2000)")
 	}
-	dev, e := s.one(`SELECT enabled FROM oa_time_device WHERE tenant_id=? AND device_id=?`, tenantID, batch.DeviceID)
+	dev, e := s.one(`SELECT enabled,timezone FROM oa_time_device WHERE tenant_id=? AND device_id=?`, tenantID, batch.DeviceID)
 	if e != nil {
 		return nil, e
 	}
 	if dev == nil || intval(dev["enabled"]) != 1 {
 		return nil, fail(422, "Unknown/disabled time device")
 	}
+	siteTZ, e := time.LoadLocation(rowString(dev, "timezone"))
+	if e != nil { return nil, fail(422, "Invalid configured device site timezone") }
 	if e = s.db.Exec("BEGIN IMMEDIATE"); e != nil {
 		return nil, e
 	}
@@ -86,7 +89,7 @@ func (s *Service) ingestPunches(batch DeviceBatch, actor string) (any, error) {
 			duplicated++
 			continue
 		}
-		mapped, err := s.one(`SELECT person_id FROM oa_badge_binding WHERE tenant_id=? AND device_id=? AND badge_id=? AND valid_from<=? AND (valid_to IS NULL OR valid_to>?) ORDER BY valid_from DESC LIMIT 1`, tenantID, batch.DeviceID, ev.BadgeID, t.Format("2006-01-02"), t.Format("2006-01-02"))
+		mapped, err := s.one(`SELECT person_id FROM oa_badge_binding WHERE tenant_id=? AND device_id=? AND badge_id=? AND valid_from<=? AND (valid_to IS NULL OR valid_to>?) ORDER BY valid_from DESC LIMIT 1`, tenantID, batch.DeviceID, ev.BadgeID, t.In(siteTZ).Format("2006-01-02"), t.In(siteTZ).Format("2006-01-02"))
 		if err != nil {
 			return nil, err
 		}
@@ -132,11 +135,20 @@ func (s *Service) ingestPunches(batch DeviceBatch, actor string) (any, error) {
 		}
 		accepted++
 	}
+	if cp != nil {
+		cp.Accepted = accepted
+		if e = s.writePullCheckpoint(*cp); e != nil {
+			return nil, e
+		}
+	}
+	if e = auditV6(s, actor, "TIME_PUNCH_IMPORT", batch.DeviceID,
+		map[string]any{"accepted": accepted, "duplicate": duplicated, "exceptions": exceptions, "checkpointed": cp != nil}); e != nil {
+		return nil, e
+	}
 	if e = s.db.Exec("COMMIT"); e != nil {
 		return nil, e
 	}
 	committed = true
-	_ = auditV6(s, actor, "TIME_PUNCH_IMPORT", batch.DeviceID, map[string]any{"accepted": accepted, "duplicate": duplicated, "exceptions": exceptions})
 	return map[string]any{"accepted": accepted, "duplicate": duplicated, "exceptions": exceptions, "source": batch.Source, "device_id": batch.DeviceID}, nil
 }
 func parseAt(s string) (time.Time, error) { return time.Parse(time.RFC3339Nano, s) }
@@ -205,6 +217,16 @@ func (s *Service) attendanceDay(person, date string) (timecore.Daily, error) {
 func (s *Service) attendanceAPI(p *Principal, r *http.Request) (any, error) {
 	path := r.URL.Path
 	switch {
+	case path == "/v2/time/adapter/state" && r.Method == "GET":
+		if !role(p, "HR", "ADMIN") {
+			return nil, fail(403, "Device checkpoint permission required")
+		}
+		return s.pullStatus()
+	case path == "/v2/time/adapter/pull" && r.Method == "POST":
+		if !role(p, "HR", "ADMIN") {
+			return nil, fail(403, "Device sync permission required")
+		}
+		return s.pullPage(r.Context(), p.PersonID)
 	case path == "/v2/time/devices" && r.Method == "GET":
 		if !role(p, "HR", "ADMIN") {
 			return nil, fail(403, "Time device administration required")
