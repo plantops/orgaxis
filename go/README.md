@@ -6,8 +6,8 @@ Standalone demonstration of **Temporal Organization & Workforce** with a sales-f
 
 1. Extract `OrgAxis-Win10-GoSQLite.zip` to a writable folder, e.g. `C:\OrgAxis`.
 2. Double-click `OrgAxis-Windows10-x64.exe` (or `Start-OrgAxis.cmd`).
-3. Open `http://127.0.0.1:6666/` in a browser.
-4. Click `Mở demo` for `http://127.0.0.1:6666/app` and enter API key `demo-local-key`.
+3. Open `http://127.0.0.1:8765/` in a browser.
+4. Click `Mở demo` for `http://127.0.0.1:8765/app` and enter API key `demo-local-key`.
 
 The `.exe` includes all HTML assets and a *synthetic* database template. At the first run, the executable creates `data\orgaxis.sqlite3` beside itself. Existing databases are preserved on subsequent runs. **Do not delete the `data` directory if you need to keep edited demo data.**
 
@@ -15,7 +15,7 @@ The `.exe` includes all HTML assets and a *synthetic* database template. At the 
 - App: `/app`
 - API reference: `/docs`
 - API health: `/health`
-- Port: `6666` (default)
+- Port: `8765` (default)
 - Listen address: `127.0.0.1` only
 - Backend: Go standard library + Windows' `winsqlite3.dll`
 - Storage: SQLite database in local `data` directory
@@ -24,7 +24,7 @@ The `.exe` includes all HTML assets and a *synthetic* database template. At the 
 Command-line options:
 
 ```powershell
-.\OrgAxis-Windows10-x64.exe -port 6666 -no-browser
+.\OrgAxis-Windows10-x64.exe -port 8765 -no-browser
 .\OrgAxis-Windows10-x64.exe -data "D:\OrgAxisData" -api-key "change-this-demo-key"
 ```
 
@@ -33,9 +33,9 @@ The demo creates one tenant, one synthetic company, 1,000 fabricated employee re
 ## API examples
 
 ```powershell
-curl.exe -H "X-API-Key: demo-local-key" "http://127.0.0.1:6666/v1/tenant"
-curl.exe -H "X-API-Key: demo-local-key" "http://127.0.0.1:6666/v1/org/blank?as_of=2027-01-01"
-curl.exe -H "X-API-Key: demo-local-key" "http://127.0.0.1:6666/v1/people/EMP-0030/manager?as_of=2026-11-18"
+curl.exe -H "X-API-Key: demo-local-key" "http://127.0.0.1:8765/v1/tenant"
+curl.exe -H "X-API-Key: demo-local-key" "http://127.0.0.1:8765/v1/org/blank?as_of=2027-01-01"
+curl.exe -H "X-API-Key: demo-local-key" "http://127.0.0.1:8765/v1/people/EMP-0030/manager?as_of=2026-11-18"
 ```
 
 ## Go development
