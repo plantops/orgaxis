@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -155,4 +154,3 @@ func TestPreloadedDB(t *testing.T) {
 		t.Fatal(e)
 	}
 }
-func TestPlaceholder(t *testing.T) { _ = http.MethodGet }
