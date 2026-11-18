@@ -5,6 +5,12 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       APP_ENV: demo
+      ORGAXIS_TENANT_ID: ${ORGAXIS_TENANT_ID:-tenant-cfc-pilot}
+      ORGAXIS_TENANT_CODE: ${ORGAXIS_TENANT_CODE:-CFCPILOT}
+      ORGAXIS_TENANT_NAME: ${ORGAXIS_TENANT_NAME:-Cement Factory Pilot Tenant}
+      ORGAXIS_SEED_PROFILE: single_company
+      ORGAXIS_DEMO_COMPANY_CODE: ${ORGAXIS_DEMO_COMPANY_CODE:-CFCPILOT}
+      ORGAXIS_DEMO_COMPANY_NAME: ${ORGAXIS_DEMO_COMPANY_NAME:-Cement Factory Pilot (SYNTHETIC)}
       HR_DB_PATH: /app/data/hr.sqlite3
       DEMO_API_KEY: ${DEMO_API_KEY:-demo-local-key}
     volumes:

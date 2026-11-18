@@ -28,6 +28,8 @@ curl -H 'X-API-Key: demo-local-key' \
  'http://127.0.0.1:8080/v1/org/blank?as_of=2027-01-01'
 ```
 
+Web UI: http://127.0.0.1:8080/
+
 API docs: http://127.0.0.1:8080/docs
 
 To run outside Docker:
@@ -68,3 +70,37 @@ tenant scoping on every read/write, database migrations, temporal concurrency co
 authorization policies, stronger audit and evidence integrity, privacy review, and load testing.
 
 Every employee/name in the seed is fabricated. Real employee data must not be imported into this demo.
+
+
+## One-company tenant pilot
+
+A demo deployment is bound to one tenant ID and one database file. This is **not**
+shared-database multi-tenancy or hosted SaaS. The `compose.yaml` creates an isolated
+sample tenant `tenant-cfc-pilot` and company `CFCPILOT` on the first run, with
+1,000 synthetic employees, 2 blank-org changes and 80 workforce changes.
+
+```bash
+# Local demo only; bind port to loopback, never expose default credentials publicly
+export DEMO_API_KEY=demo-local-key
+# Use docker compose rather than the old docker-compose tool
+# From a fresh database volume:
+docker compose up --build -d
+curl -H 'X-API-Key: demo-local-key' http://127.0.0.1:8080/v1/tenant
+curl -H 'X-API-Key: demo-local-key' http://127.0.0.1:8080/v1/companies
+curl -H 'X-API-Key: demo-local-key' \
+  'http://127.0.0.1:8080/v1/people/EMP-0030/manager?as_of=2026-11-18'
+```
+
+Companies can be created via `POST /v1/companies` with a JSON body such as:
+
+```json
+{"code":"SECOND","name":"Second Example Company (SYNTHETIC)","jurisdiction":"VN"}
+```
+
+Only metadata is created by that endpoint. Organizational structure, positions,
+people and employment assignments are separate operations.
+
+**Critical:** switching `ORGAXIS_TENANT_ID` requires a separate database/volume.
+Do not switch the ID against a populated database, and do not expose this demo
+API to the internet. Tenant isolation is by deployment/database, not a complete
+hosted multi-tenant security implementation.
