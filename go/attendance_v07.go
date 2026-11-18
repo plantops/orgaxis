@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+	_ "time/tzdata"
 )
 
 // Attendance v0.7 is a synthetic-data integration contract. It does NOT
@@ -14,7 +15,7 @@ import (
 // Raw device events are retained with source provenance and stable event keys.
 func attendanceSchema(db SQLiteDB) error {
 	statements := []string{
-		`CREATE TABLE IF NOT EXISTS oa_time_device(tenant_id TEXT NOT NULL,device_id TEXT NOT NULL,site_id TEXT NOT NULL,description TEXT NOT NULL,source_type TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(tenant_id,device_id))`,
+		`CREATE TABLE IF NOT EXISTS oa_time_device(tenant_id TEXT NOT NULL,device_id TEXT NOT NULL,site_id TEXT NOT NULL,description TEXT NOT NULL,source_type TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,timezone TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh',PRIMARY KEY(tenant_id,device_id))`,
 		`CREATE TABLE IF NOT EXISTS oa_badge_binding(tenant_id TEXT NOT NULL,device_id TEXT NOT NULL,badge_id TEXT NOT NULL,person_id TEXT NOT NULL,valid_from TEXT NOT NULL,valid_to TEXT,PRIMARY KEY(tenant_id,device_id,badge_id,valid_from))`,
 		`CREATE TABLE IF NOT EXISTS oa_raw_punch(tenant_id TEXT NOT NULL,source TEXT NOT NULL,device_id TEXT NOT NULL,event_id TEXT NOT NULL,badge_id TEXT NOT NULL,person_id TEXT NOT NULL,direction TEXT NOT NULL,occurred_at_utc TEXT NOT NULL,received_at_utc TEXT NOT NULL,PRIMARY KEY(tenant_id,source,device_id,event_id))`,
 		`CREATE INDEX IF NOT EXISTS ix_oa_punch_person_at ON oa_raw_punch(tenant_id,person_id,occurred_at_utc)`,
@@ -49,13 +50,15 @@ func (s *Service) ingestPunchesWithCheckpoint(batch DeviceBatch, actor string, c
 	if !sourceIdentifier.MatchString(batch.Source) || !sourceIdentifier.MatchString(batch.DeviceID) || len(batch.Events) == 0 || len(batch.Events) > 2000 {
 		return nil, fail(422, "Invalid source, device or batch size (1..2000)")
 	}
-	dev, e := s.one(`SELECT enabled FROM oa_time_device WHERE tenant_id=? AND device_id=?`, tenantID, batch.DeviceID)
+	dev, e := s.one(`SELECT enabled,timezone FROM oa_time_device WHERE tenant_id=? AND device_id=?`, tenantID, batch.DeviceID)
 	if e != nil {
 		return nil, e
 	}
 	if dev == nil || intval(dev["enabled"]) != 1 {
 		return nil, fail(422, "Unknown/disabled time device")
 	}
+	siteTZ, e := time.LoadLocation(rowString(dev, "timezone"))
+	if e != nil { return nil, fail(422, "Invalid configured device site timezone") }
 	if e = s.db.Exec("BEGIN IMMEDIATE"); e != nil {
 		return nil, e
 	}
@@ -86,7 +89,7 @@ func (s *Service) ingestPunchesWithCheckpoint(batch DeviceBatch, actor string, c
 			duplicated++
 			continue
 		}
-		mapped, err := s.one(`SELECT person_id FROM oa_badge_binding WHERE tenant_id=? AND device_id=? AND badge_id=? AND valid_from<=? AND (valid_to IS NULL OR valid_to>?) ORDER BY valid_from DESC LIMIT 1`, tenantID, batch.DeviceID, ev.BadgeID, t.Format("2006-01-02"), t.Format("2006-01-02"))
+		mapped, err := s.one(`SELECT person_id FROM oa_badge_binding WHERE tenant_id=? AND device_id=? AND badge_id=? AND valid_from<=? AND (valid_to IS NULL OR valid_to>?) ORDER BY valid_from DESC LIMIT 1`, tenantID, batch.DeviceID, ev.BadgeID, t.In(siteTZ).Format("2006-01-02"), t.In(siteTZ).Format("2006-01-02"))
 		if err != nil {
 			return nil, err
 		}
