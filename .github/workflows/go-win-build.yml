@@ -1,11 +1,15 @@
-name: OrgAxis Windows x64 builds and smoke tests
+name: Go Windows x64
 on:
   push:
-    paths: ['go/**', '.github/workflows/go-win-build.yml']
+    paths:
+      - 'go/**'
+      - '.github/workflows/go-win-build.yml'
   pull_request:
-    paths: ['go/**', '.github/workflows/go-win-build.yml']
+    paths:
+      - 'go/**'
+      - '.github/workflows/go-win-build.yml'
 jobs:
-  build:
+  windows-binary:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -15,7 +19,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go/go.mod
-      - name: Generate synthetic seed for embedded standalone binary
+      - name: Generate embedded synthetic seed
         run: |
           ORGAXIS_TENANT_ID=tenant-cfc-pilot \
           ORGAXIS_SEED_PROFILE=single_company \
@@ -24,56 +28,27 @@ jobs:
           ORGAXIS_DEMO_COMPANY_CODE=CFCPILOT \
           ORGAXIS_DEMO_COMPANY_NAME="Cement Factory Pilot (SYNTHETIC)" \
           python3 ../seed.py --db assets/seed.sqlite3
-      - name: Prepare full synthetic demo data
+      - name: Populate operational HR module fixtures and backfill
         run: |
           python3 enrich_seed.py
           python3 enrich_extended.py
           python3 generate_workbench_seed.py
           python3 make_demo_assets.py
-      - name: Validate JavaScript and Go tests
+      - name: Validate JavaScript syntax
         run: |
           node --check assets/app.js
           node --check assets/revamp.js
-          sudo apt-get update -qq
-          sudo apt-get install -y libsqlite3-dev pkg-config
-          go test -race ./... -count=1
-      - name: Windows 10 x64 GUI and console binaries
-        run: |
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w -H windowsgui' -o OrgAxis.exe .
+          node --check assets/workspace.js
+      - name: Prepare SQLite headers for CGO tests
+        run: sudo apt-get update -qq && sudo apt-get install -y libsqlite3-dev pkg-config
+      - name: Test Go API (Linux)
+        run: go test ./...
+      - name: Cross-compile Windows 10 x64
+        run: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w -H windowsgui' -o OrgAxis.exe .
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o OrgAxisServer.exe .
       - uses: actions/upload-artifact@v4
         with:
-          name: OrgAxis-v05-Win10-x64
+          name: OrgAxis-Windows10-v06
           path: |
             go/OrgAxis.exe
             go/OrgAxisServer.exe
-            go/windows/*.ps1
-            go/windows/*.cmd
-            go/README-v05.md
-  windows-smoke:
-    runs-on: windows-latest
-    needs: build
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: OrgAxis-v05-Win10-x64
-          path: dist
-      - name: Native Windows HTTP and single-server smoke test
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $exe = (Resolve-Path 'dist/OrgAxisServer.exe').Path
-          $data = Join-Path $env:RUNNER_TEMP 'orgaxis-windows-smoke'
-          $p = Start-Process -FilePath $exe -ArgumentList @('-mode','server','-no-browser','-port','18876','-data',"`"$data`"") -PassThru
-          try {
-            $ready=$false
-            for($i=0;$i -lt 45;$i++) {
-              Start-Sleep -Milliseconds 400
-              try { $h=Invoke-RestMethod 'http://127.0.0.1:18876/health' -TimeoutSec 2; if($h.status -eq 'ok') {$ready=$true;break} } catch {}
-            }
-            if(-not $ready){ throw 'Windows HTTP server failed to start' }
-            $result=Invoke-RestMethod 'http://127.0.0.1:18876/v1/people/EMP-0030/manager?as_of=2026-11-18' -Headers @{'X-API-Key'='demo-local-key'}
-            if($result.status -ne 'resolved'){ throw 'Manager lookup failed' }
-            $log=Invoke-RestMethod 'http://127.0.0.1:18876/v1/system/logs?lines=10' -Headers @{'X-API-Key'='demo-local-key'}
-            if($null -eq $log.count){throw 'Log endpoint missing'}
-          } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }

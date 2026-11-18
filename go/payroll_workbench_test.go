@@ -79,8 +79,8 @@ func TestForeignStaffNamesAndLegacyMigration(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if intval(rows[0]["n"]) != 3000 {
-		t.Fatal("missing 3000 ledger rows")
+	if intval(rows[0]["n"]) != 12000 {
+		t.Fatal("missing 12000 ledger rows")
 	}
 	r, e := first(db, `SELECT display_name FROM person WHERE id='EMP-0120'`)
 	if e != nil {

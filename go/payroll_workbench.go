@@ -81,11 +81,11 @@ func upgradePayrollWorkbench(db SQLiteDB) error {
 			return fmt.Errorf("workbench schema: %w", e)
 		}
 	}
-	ex, e := first(db, `SELECT COUNT(*) AS n FROM payroll_demo_ledger WHERE tenant_id=? AND period='2026-10'`, tenantID)
+	ex, e := first(db, `SELECT COUNT(*) AS n FROM payroll_demo_ledger WHERE tenant_id=? AND period LIKE '2026-%'`, tenantID)
 	if e != nil {
 		return e
 	}
-	if intval(ex["n"]) >= 1000 {
+	if intval(ex["n"]) >= 12000 {
 		return nil
 	}
 	rows, e := db.Query(`SELECT p.id,c.base_pay_minor,t.dependent_count FROM person p
@@ -113,7 +113,7 @@ func upgradePayrollWorkbench(db SQLiteDB) error {
 		n, _ := strconv.Atoi(strings.TrimPrefix(id, "EMP-"))
 		base := int64(intval(person["base_pay_minor"]))
 		deps := intval(person["dependent_count"])
-		for _, month := range []int{9, 10, 11} {
+		for month := 1; month <= 12; month++ {
 			vals := demoLedger(n, month, base, deps)
 			period := fmt.Sprintf("2026-%02d", month)
 			e = db.Exec(`INSERT OR IGNORE INTO payroll_demo_ledger(tenant_id,person_id,period,base_pay,allowance,overtime,attendance_bonus,performance_bonus,gross,employee_insurance,other_deduction,taxable_income,pit_estimate,net_estimate,dependents,rule_version)

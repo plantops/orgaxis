@@ -133,7 +133,21 @@ func runApp(ctx context.Context, c Config, ready func()) error {
 	if e = upgradePayrollWorkbench(db); e != nil {
 		return e
 	}
-	s := &Service{db: db, key: c.APIKey, port: c.Port, logfile: logfile, started: time.Now()}
+	if backup, e2 := backupBeforeSecurity(db, dbPath); e2 != nil {
+		return e2
+	} else if backup != "" {
+		log.Printf("Backup before secure v0.6 migration: %s", backup)
+	}
+	if e = secureSchema(db); e != nil {
+		return e
+	}
+	if e = bootstrapUsers(db, c.Data); e != nil {
+		return e
+	}
+	if e = seedV6Cases(db); e != nil {
+		return e
+	}
+	s := &Service{db: db, key: c.APIKey, port: c.Port, logfile: logfile, started: time.Now(), secureDemo: true}
 	handler := s.routes()
 	localListener, e := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", c.Port))
 	if e != nil {
