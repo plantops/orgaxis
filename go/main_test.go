@@ -25,7 +25,7 @@ func testService(t *testing.T) *Service {
 		t.Fatal(e)
 	}
 	t.Cleanup(func() { db.Close() })
-	return &Service{db: db, key: "demo-local-key"}
+	return &Service{db: db, key: "demo-local-key", port: 8765}
 }
 func serve(t *testing.T, s *Service, method, path, body string, key bool) (int, []byte) {
 	t.Helper()
@@ -62,6 +62,13 @@ func TestServeHeroAndApp(t *testing.T) {
 	_, hero := serve(t, s, "GET", "/", "", false)
 	if !bytes.Contains(hero, []byte("Một tổ chức")) || !bytes.Contains(hero, []byte("data-state")) {
 		t.Fatal("missing hero copy or interactive timeline")
+	}
+}
+func TestHealthPort(t *testing.T) {
+	s := testService(t)
+	status, data := serve(t, s, "GET", "/health", "", false)
+	if status != 200 || int(obj(t, data)["port"].(float64)) != 8765 {
+		t.Fatalf("health status or port mismatch: %d %s", status, data)
 	}
 }
 func TestAuthTenantAndCompany(t *testing.T) {
