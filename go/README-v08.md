@@ -48,3 +48,10 @@ Automated tests cover UPDATE/DELETE trigger denial, rerunning DDL, vendor JSON p
 Stop the service/Tray, back up the entire data folder and keep the database file. Start on a **copy** of a production-like SQLite DB for migration/restore tests. The migration makes a separate snapshot once on first startup; protect it with restricted OS ACL and external backup policy.
 
 **Blocked P0:** site timezone and device mapping ownership; leave/OT approved evidence; roster completeness and calendar; monthly close/reopen with source digest; Vietnam statutory payroll, BHXH/PIT; two-period reconciliation; security and independent AppGate UAT. Do not post payroll from `pay-preview`.
+
+
+## Correctness gate added in v0.8
+
+Effective-dated badge identity resolution uses the **device's site timezone**, not the timezone string supplied by a gateway. Existing device records receive `timezone='Asia/Ho_Chi_Minh'` by additive migration; a per-device IANA zone can be configured when site governance is established. The build embeds IANA timezone data for consistent Windows behavior. A test covers an event received in UTC after 17:00 that belongs to the next Vietnam local day.
+
+A device response with multiple JSON documents, a credential-bearing URL or malformed JSON is rejected. Upstream errors are sanitized in HTTP responses. Cursor semantics and physical device event IDs remain gateway-dependent and unverified.
