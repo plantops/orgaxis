@@ -35,17 +35,17 @@ func attendanceSchema(db SQLiteDB) error {
 type DeviceBatch struct {
 	Source   string `json:"source"`
 	DeviceID string `json:"device_id"`
-	Events   []struct {
-		EventID    string `json:"event_id"`
-		BadgeID    string `json:"badge_id"`
-		Direction  string `json:"direction"`
-		OccurredAt string `json:"occurred_at"` // RFC3339 offset required
-	} `json:"events"`
+	Events   []timecore.DeviceEvent `json:"events"`
 }
 
 var sourceIdentifier = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,80}$`)
 
 func (s *Service) ingestPunches(batch DeviceBatch, actor string) (any, error) {
+	return s.ingestPunchesWithCheckpoint(batch, actor, nil)
+}
+
+// cp is nil for interactive import; non-nil for a device pull with transactional cursor commit.
+func (s *Service) ingestPunchesWithCheckpoint(batch DeviceBatch, actor string, cp *pullCheckpoint) (any, error) {
 	if !sourceIdentifier.MatchString(batch.Source) || !sourceIdentifier.MatchString(batch.DeviceID) || len(batch.Events) == 0 || len(batch.Events) > 2000 {
 		return nil, fail(422, "Invalid source, device or batch size (1..2000)")
 	}
@@ -132,11 +132,20 @@ func (s *Service) ingestPunches(batch DeviceBatch, actor string) (any, error) {
 		}
 		accepted++
 	}
+	if cp != nil {
+		cp.Accepted = accepted
+		if e = s.writePullCheckpoint(*cp); e != nil {
+			return nil, e
+		}
+	}
+	if e = auditV6(s, actor, "TIME_PUNCH_IMPORT", batch.DeviceID,
+		map[string]any{"accepted": accepted, "duplicate": duplicated, "exceptions": exceptions, "checkpointed": cp != nil}); e != nil {
+		return nil, e
+	}
 	if e = s.db.Exec("COMMIT"); e != nil {
 		return nil, e
 	}
 	committed = true
-	_ = auditV6(s, actor, "TIME_PUNCH_IMPORT", batch.DeviceID, map[string]any{"accepted": accepted, "duplicate": duplicated, "exceptions": exceptions})
 	return map[string]any{"accepted": accepted, "duplicate": duplicated, "exceptions": exceptions, "source": batch.Source, "device_id": batch.DeviceID}, nil
 }
 func parseAt(s string) (time.Time, error) { return time.Parse(time.RFC3339Nano, s) }
@@ -205,6 +214,16 @@ func (s *Service) attendanceDay(person, date string) (timecore.Daily, error) {
 func (s *Service) attendanceAPI(p *Principal, r *http.Request) (any, error) {
 	path := r.URL.Path
 	switch {
+	case path == "/v2/time/adapter/state" && r.Method == "GET":
+		if !role(p, "HR", "ADMIN") {
+			return nil, fail(403, "Device checkpoint permission required")
+		}
+		return s.pullStatus()
+	case path == "/v2/time/adapter/pull" && r.Method == "POST":
+		if !role(p, "HR", "ADMIN") {
+			return nil, fail(403, "Device sync permission required")
+		}
+		return s.pullPage(r.Context(), p.PersonID)
 	case path == "/v2/time/devices" && r.Method == "GET":
 		if !role(p, "HR", "ADMIN") {
 			return nil, fail(403, "Time device administration required")
