@@ -54,3 +54,14 @@ HR Owner validates payroll calendars, entitlements and exception dispositions; F
 - **BIZ-02/03** full approved leave/OT, explicit site calendar, month close, legal payroll calculation and golden reconciliation remain blocked.
 
 AppGate `enterprise-v2026.11.2` criterion statuses are **evidence pending**, not PASS; overall score and applicability coverage remain unassessed. The AppGate review must be performed by an independent reviewer at the proper lifecycle stage.
+
+## v0.9 draft time ledger — PR #10 (source engineering evidence, not acceptance)
+
+- Candidate: `feature/p0-attendance-ledger-lock-v09`, stacked on draft PR #9.
+- **BIZ-02/03:** per-person 28–31 day explicit SHIFT/REST/HOLIDAY plan; blocked if missing roster, unresolved punch, unrostered rest-day event, or synthetic dataset. HR PREPARED -> PAYROLL LOCKED with distinct actor. This demonstrates workflow mechanics, **not official attendance policy conformity**.
+- **DAT-02/03/04:** SQLite transaction and audit, SHA256 digest of input plan/roster/punches/leave/OT, SQLite guards for locked ledger, plan and roster. Source drift after late punch is observable; privileged SQLite owner can bypass triggers.
+- **REL-01/04:** additive ledger tables and `VACUUM INTO` pre-migration copy. Still missing documented production-like restore drill and off-host encrypted backups.
+- **SEC-02/03:** authenticated session, CSRF, HR/PAYROLL roles on time-ledger endpoints. True cross-company tenant isolation, source identity provenance and per-site payroll scope remain unverified.
+- **BLOCKED:** actual device protocol/edge replay, source-attested plan and leave/OT approval case binding, 2026 legal payroll/BHXH/PIT, retro-pay, bank export and 100 employees × 2 months numeric reconciliation, independent AppGate UAT reviewer.
+
+No AppGate rubric score, percentage, UAT PASS or certification is asserted.
