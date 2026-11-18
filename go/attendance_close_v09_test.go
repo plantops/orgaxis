@@ -91,6 +91,14 @@ func TestV09TwoPersonTimeLockAndLateSourceDrift(t *testing.T) {
 	}
 	x=call(v.service,"POST","/v2/time/calendar/import",string(payload),hr,true)
 	if x.Code!=409{t.Fatalf("locked calendar was edited: %d %s",x.Code,x.Body)}
+	if e:=v.service.db.Exec(`UPDATE oa_time_roster SET unpaid_break_min=0
+		WHERE tenant_id=? AND person_id='EMP-0012' AND work_date='2026-02-02'`,tenantID);e==nil{
+		t.Fatal("locked roster SQL UPDATE accepted")
+	}
+	if e:=v.service.db.Exec(`UPDATE oa_time_month_close SET source_digest='forged'
+		WHERE tenant_id=? AND person_id='EMP-0012' AND period='2026-02'`,tenantID);e==nil{
+		t.Fatal("locked ledger SQL UPDATE accepted")
+	}
 	late:=`{"source":"TEST-LATE","device_id":"SIM-GATE-01","events":[{"event_id":"late-Feb-15","badge_id":"EMP-0012","direction":"IN","occurred_at":"2026-02-15T10:00:00+07:00"}]}`
 	x=call(v.service,"POST","/v2/time/punches/import",late,hr,true)
 	if x.Code!=201{t.Fatalf("late raw event not retained: %d %s",x.Code,x.Body)}
@@ -101,5 +109,9 @@ func TestV09TwoPersonTimeLockAndLateSourceDrift(t *testing.T) {
 	closed,e:=v.service.one(`SELECT status,locked_by FROM oa_time_month_close WHERE tenant_id=? AND person_id=? AND period='2026-02'`,tenantID,plan.PersonID)
 	if e!=nil || rowString(closed,"status")!="LOCKED" || rowString(closed,"locked_by")!="EMP-0007"{
 		t.Fatalf("locked snapshot was altered: %v %v",closed,e)
+	}
+	x=call(v.service,"GET","/v2/time/period/readiness?person_id=EMP-0012&period=2026-02","",hr,false)
+	if x.Code!=200 || obj(t,x.Body.Bytes())["ready"]!=false{
+		t.Fatalf("unrostered late punch did not block readiness: %d %s",x.Code,x.Body)
 	}
 }
