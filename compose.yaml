@@ -1,0 +1,14 @@
+services:
+  hr-engine:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      APP_ENV: demo
+      HR_DB_PATH: /app/data/hr.sqlite3
+      DEMO_API_KEY: ${DEMO_API_KEY:-demo-local-key}
+    volumes:
+      - hr-demo-data:/app/data
+    restart: unless-stopped
+volumes:
+  hr-demo-data:
