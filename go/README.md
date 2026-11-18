@@ -45,6 +45,7 @@ root-level `seed.py` before compiling the self-contained executable. For local
 builds from a source checkout, create the fixture once:
 
 ```sh
+ORGAXIS_TENANT_ID=tenant-cfc-pilot \
 ORGAXIS_SEED_PROFILE=single_company \
 ORGAXIS_TENANT_CODE=CFCPILOT \
 ORGAXIS_TENANT_NAME="Cement Factory Pilot Tenant" \
