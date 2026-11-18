@@ -191,6 +191,8 @@ func (s *Service) timePeriodReadiness(person, period string) (periodReadiness, e
 	if err != nil { return periodReadiness{}, err }
 	if err := s.requirePerson(person); err != nil { return periodReadiness{}, err }
 	out := periodReadiness{PersonID:person,Period:period,Blockers:[]string{}}
+	type observedWindow struct { start, end time.Time }
+	windows := []observedWindow{}
 	plans, err := s.rows(`SELECT work_date,kind,source_ref FROM oa_time_day_plan
 		WHERE tenant_id=? AND person_id=? AND work_date LIKE ? ORDER BY work_date`,tenantID,person,period+"%")
 	if err != nil { return out, err }
@@ -207,7 +209,7 @@ func (s *Service) timePeriodReadiness(person, period string) (periodReadiness, e
 			out.Blockers = append(out.Blockers, day+":SYNTHETIC_PLAN_NOT_ACCEPTABLE")
 		}
 		kind := rowString(p,"kind")
-		roster, e := s.one(`SELECT origin FROM oa_time_roster WHERE tenant_id=? AND person_id=? AND work_date=?`, tenantID,person,day)
+		roster, e := s.one(`SELECT origin,shift_start,shift_end FROM oa_time_roster WHERE tenant_id=? AND person_id=? AND work_date=?`, tenantID,person,day)
 		if e != nil { return out, e }
 		if kind != "SHIFT" {
 			if roster != nil { out.Blockers = append(out.Blockers,day+":NON_SHIFT_HAS_ROSTER") }
@@ -221,6 +223,10 @@ func (s *Service) timePeriodReadiness(person, period string) (periodReadiness, e
 		if strings.HasPrefix(strings.ToUpper(rowString(roster,"origin")),"SYNTHETIC") {
 			out.Blockers = append(out.Blockers,day+":SYNTHETIC_ROSTER_NOT_ACCEPTABLE")
 		}
+		startAt,startErr:=parseAt(rowString(roster,"shift_start"))
+		endAt,endErr:=parseAt(rowString(roster,"shift_end"))
+		if startErr!=nil || endErr!=nil { return out,fail(422,"Invalid roster timestamps") }
+		windows=append(windows,observedWindow{startAt.Add(-4*time.Hour),endAt.Add(6*time.Hour)})
 		valuation,e := s.attendanceDay(person,day)
 		if e != nil { return out,e }
 		out.ScheduledMinutes += valuation.ScheduledMinutes
@@ -233,6 +239,35 @@ func (s *Service) timePeriodReadiness(person, period string) (periodReadiness, e
 		}
 	}
 	if out.ShiftDays == 0 { out.Blockers = append(out.Blockers,"NO_SHIFT_DAYS") }
+	// A shift starting on the last day of the previous period may carry over
+	// into the first calendar day. Include its observation window.
+	prior,e:=s.one(`SELECT shift_start,shift_end FROM oa_time_roster
+		WHERE tenant_id=? AND person_id=? AND work_date=?`,tenantID,person,dateOf(start.AddDate(0,0,-1)))
+	if e!=nil{return out,e}
+	if prior!=nil{
+		a,ea:=parseAt(rowString(prior,"shift_start"))
+		b,eb:=parseAt(rowString(prior,"shift_end"))
+		if ea!=nil || eb!=nil{return out,fail(422,"Invalid prior shift timestamps")}
+		windows=append(windows,observedWindow{a.Add(-4*time.Hour),b.Add(6*time.Hour)})
+	}
+	siteTZ,e:=time.LoadLocation("Asia/Ho_Chi_Minh")
+	if e!=nil{return out,e}
+	siteStart:=time.Date(start.Year(),start.Month(),1,0,0,0,0,siteTZ)
+	siteEnd:=siteStart.AddDate(0,1,0)
+	orphans,e:=s.rows(`SELECT event_id,occurred_at_utc FROM oa_raw_punch
+		WHERE tenant_id=? AND person_id=? AND occurred_at_utc>=? AND occurred_at_utc<?
+		ORDER BY occurred_at_utc,event_id`,tenantID,person,
+		siteStart.UTC().Format(time.RFC3339Nano),siteEnd.UTC().Format(time.RFC3339Nano))
+	if e!=nil{return out,e}
+	for _,punch:=range orphans{
+		at,err:=parseAt(rowString(punch,"occurred_at_utc"))
+		if err!=nil{return out,err}
+		covered:=false
+		for _,w:=range windows{
+			if !at.Before(w.start) && !at.After(w.end){covered=true;break}
+		}
+		if !covered{out.Blockers=append(out.Blockers,"UNROSTERED_PUNCH:"+rowString(punch,"event_id"))}
+	}
 	// The current demo OT/leave credit rows are not linked to approved
 	// workflow evidence. Block period close until that integration exists.
 	lo := start.Add(-2*24*time.Hour).Format(time.RFC3339)
