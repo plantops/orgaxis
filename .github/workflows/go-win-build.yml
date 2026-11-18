@@ -27,6 +27,8 @@ jobs:
           ORGAXIS_DEMO_COMPANY_CODE=CFCPILOT \
           ORGAXIS_DEMO_COMPANY_NAME="Cement Factory Pilot (SYNTHETIC)" \
           python3 ../seed.py --db assets/seed.sqlite3
+      - name: Prepare SQLite headers for CGO tests
+        run: sudo apt-get update -qq && sudo apt-get install -y libsqlite3-dev pkg-config
       - name: Test Go API (Linux)
         run: go test ./...
       - name: Cross-compile Windows 10 x64
