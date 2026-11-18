@@ -42,15 +42,19 @@ jobs:
           node --check assets/time.js
       - name: Prepare SQLite headers for CGO tests
         run: sudo apt-get update -qq && sudo apt-get install -y libsqlite3-dev pkg-config
-      - name: Test Go API (Linux)
-        run: go test ./...
+      - name: Test Go API, race and vet (Linux)
+        run: |
+          go test ./...
+          go test -race ./...
+          go vet ./...
       - name: Cross-compile Windows 10 x64
         run: |
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w -H windowsgui' -o OrgAxis.exe .
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o OrgAxisServer.exe .
       - uses: actions/upload-artifact@v4
         with:
-          name: OrgAxis-Windows10-v07
+          name: OrgAxis-Windows10-v08-P0
           path: |
             go/OrgAxis.exe
             go/OrgAxisServer.exe
+            go/README-v08.md
