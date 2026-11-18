@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -226,7 +225,7 @@ func (s *Service) timePeriodReadiness(person, period string) (periodReadiness, e
 func (s *Service) prepareTimePeriod(person,period,actor string) (any,error) {
 	r,err := s.timePeriodReadiness(person,period)
 	if err != nil {return nil,err}
-	if !r.Ready { return map[string]any{"status":"BLOCKED","readiness":r},nil }
+	if !r.Ready { return nil,fail(409,"Time period blocked: "+strings.Join(r.Blockers,"; ")) }
 	if err=s.db.Exec("BEGIN IMMEDIATE");err!=nil{return nil,err}
 	committed:=false
 	defer func(){if !committed{_ = s.db.Exec("ROLLBACK")}}()
@@ -253,7 +252,7 @@ func (s *Service) prepareTimePeriod(person,period,actor string) (any,error) {
 func (s *Service) approveTimePeriod(person,period,actor string) (any,error) {
 	r,err:=s.timePeriodReadiness(person,period)
 	if err!=nil{return nil,err}
-	if !r.Ready{return map[string]any{"status":"BLOCKED","readiness":r},nil}
+	if !r.Ready{return nil,fail(409,"Time period blocked: "+strings.Join(r.Blockers,"; "))}
 	if err=s.db.Exec("BEGIN IMMEDIATE");err!=nil{return nil,err}
 	committed:=false
 	defer func(){if !committed{_ = s.db.Exec("ROLLBACK")}}()
@@ -317,4 +316,3 @@ func (s *Service) timeCloseAPI(p *Principal,r *http.Request) (any,error) {
 	return nil,fail(404,"Unknown time ledger endpoint")
 }
 
-var _ = fmt.Sprintf // reserved for future formatted reconciliation reasons
