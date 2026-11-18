@@ -7,11 +7,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -24,17 +22,19 @@ import (
 	"time"
 )
 
-//go:embed assets/*.html assets/*.js assets/*.css assets/seed.sqlite3 assets/*.gz
+//go:embed assets/*.html assets/*.js assets/*.css assets/seed.sqlite3 assets/*.gz assets/*.ico assets/avatars/*.webp assets/illustrations/*.webp
 var builtIn embed.FS
 
 const tenantID = "tenant-cfc-pilot"
 const todayFallback = "2026-11-18"
 
 type Service struct {
-	db   SQLiteDB
-	mu   sync.Mutex
-	key  string
-	port int
+	db      SQLiteDB
+	mu      sync.Mutex
+	key     string
+	port    int
+	logfile *RotatingLog
+	started time.Time
 }
 type APIError struct {
 	Status  int
@@ -546,16 +546,78 @@ func (s *Service) routes() http.Handler {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		w.Write(b)
 	})
+	mux.HandleFunc("GET /assets/revamp.css", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := builtIn.ReadFile("assets/revamp.css")
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		w.Write(b)
+	})
+	mux.HandleFunc("GET /assets/revamp.js", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := builtIn.ReadFile("assets/revamp.js")
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Write(b)
+	})
 	mux.HandleFunc("GET /assets/app.js", func(w http.ResponseWriter, r *http.Request) {
 		b, _ := builtIn.ReadFile("assets/app.js")
 		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		w.Write(b)
 	})
+	mux.HandleFunc("GET /assets/avatars/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if !regexp.MustCompile(`^employee-\d{2}\.webp$`).MatchString(name) {
+			http.NotFound(w, r)
+			return
+		}
+		b, e := builtIn.ReadFile("assets/avatars/" + name)
+		if e != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/webp")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Write(b)
+	})
+	mux.HandleFunc("GET /assets/illustrations/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if !regexp.MustCompile(`^hero_[a-z_]+\.webp$`).MatchString(name) {
+			http.NotFound(w, r)
+			return
+		}
+		b, e := builtIn.ReadFile("assets/illustrations/" + name)
+		if e != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/webp")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Write(b)
+	})
 	mux.HandleFunc("GET /{$}", page("hero.html"))
 	mux.HandleFunc("GET /app", page("index.html"))
 	mux.HandleFunc("GET /docs", page("docs.html"))
+	mux.HandleFunc("GET /logs", page("logs.html"))
+	mux.HandleFunc("GET /v1/system/status", func(w http.ResponseWriter, r *http.Request) {
+		s.api(w, r, func() (any, error) {
+			return map[string]any{"status": "running", "port": s.port, "uptime_seconds": int(time.Since(s.started).Seconds()), "logs": "data/orgaxis.log", "mode": "synthetic-demo"}, nil
+		})
+	})
+	mux.HandleFunc("GET /v1/system/logs", func(w http.ResponseWriter, r *http.Request) {
+		s.api(w, r, func() (any, error) {
+			n, e := takeInt(r, "lines", 100, 1, 500)
+			if e != nil {
+				return nil, e
+			}
+			if s.logfile == nil {
+				return map[string]any{"lines": []string{}, "count": 0}, nil
+			}
+			lines, e := s.logfile.Tail(n)
+			if e != nil {
+				return nil, e
+			}
+			return map[string]any{"lines": lines, "count": len(lines)}, nil
+		})
+	})
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		response(w, 200, map[string]any{"status": "ok", "mode": "local-synthetic-demo", "synthetic_data": true, "database": "sqlite", "port": s.port})
+		response(w, 200, map[string]any{"status": "ok", "mode": "local-synthetic-demo", "synthetic_data": true, "database": "sqlite", "port": s.port, "uptime_seconds": int(time.Since(s.started).Seconds())})
 	})
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
 		s.api(w, r, func() (any, error) {
@@ -714,62 +776,4 @@ func launchBrowser(url string) {
 	if runtime.GOOS == "windows" {
 		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 	}
-}
-func main() {
-	port := flag.Int("port", 8765, "Local HTTP port (default 8765)")
-	data := flag.String("data", "", "Data directory (default ./data beside executable)")
-	key := flag.String("api-key", "", "API key for local demo (default ORGAXIS_API_KEY or demo-local-key)")
-	noBrowser := flag.Bool("no-browser", false, "Do not open the browser automatically")
-	flag.Parse()
-	if *port < 1 || *port > 65535 {
-		log.Fatal("invalid port")
-	}
-	if *data == "" {
-		ex, e := os.Executable()
-		if e != nil {
-			log.Fatal(e)
-		}
-		*data = filepath.Join(filepath.Dir(ex), "data")
-	}
-	dbPath, e := setupDB(*data)
-	if e != nil {
-		log.Fatal(e)
-	}
-	db, e := openSQLite(dbPath)
-	if e != nil {
-		log.Fatal(e)
-	}
-	defer db.Close()
-	if backup, be := backupBeforeUpgrade(db, dbPath); be != nil {
-		log.Fatal(be)
-	} else if backup != "" {
-		log.Printf("Demo database backup created: %s", backup)
-	}
-	if e := enhanceDB(db); e != nil {
-		log.Fatal(e)
-	}
-	apiKey := *key
-	if apiKey == "" {
-		apiKey = os.Getenv("ORGAXIS_API_KEY")
-	}
-	if apiKey == "" {
-		apiKey = "demo-local-key"
-	}
-	service := &Service{db: db, key: apiKey, port: *port}
-	ln, e := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
-	if e != nil {
-		log.Fatal(e)
-	}
-	defer ln.Close()
-	url := fmt.Sprintf("http://127.0.0.1:%d/", *port)
-	fmt.Println("OrgAxis — Temporal Workforce Demo (synthetic data)")
-	fmt.Println("Hero: " + url)
-	fmt.Println("Pilot App: " + url + "app")
-	fmt.Println("Local database: " + dbPath)
-	fmt.Println("Press Ctrl+C to stop")
-	if !*noBrowser {
-		launchBrowser(url)
-	}
-	server := &http.Server{Handler: service.routes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 45 * time.Second, MaxHeaderBytes: 1 << 20}
-	log.Fatal(server.Serve(ln))
 }
