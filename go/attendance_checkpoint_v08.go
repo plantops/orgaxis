@@ -131,7 +131,7 @@ func (s *Service) pullPage(ctx context.Context, actor string) (any, error) {
 	cursor := rowString(checkpoint, "cursor")
 	page, err := reader.Fetch(ctx, cursor)
 	if err != nil {
-		return nil, fail(502, "Device API read failed: "+err.Error())
+		return nil, fail(502, "Device API is unavailable or returned invalid data")
 	}
 	if len(page.NextCursor) > 1024 {
 		return nil, fail(422, "Device API returned oversized cursor")
