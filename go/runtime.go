@@ -157,6 +157,14 @@ func runApp(ctx context.Context, c Config, ready func()) error {
 	if e = attendanceCheckpointSchema(db); e != nil {
 		return e
 	}
+	if backup, be := backupBeforeTimeLedger(db, dbPath); be != nil {
+		return be
+	} else if backup != "" {
+		log.Printf("Backup before monthly time ledger migration: %s", backup)
+	}
+	if e = timeLedgerSchema(db); e != nil {
+		return e
+	}
 	if e = bootstrapUsers(db, c.Data); e != nil {
 		return e
 	}

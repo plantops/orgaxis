@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	_ "time/tzdata"
 )
@@ -216,6 +217,9 @@ func (s *Service) attendanceDay(person, date string) (timecore.Daily, error) {
 }
 func (s *Service) attendanceAPI(p *Principal, r *http.Request) (any, error) {
 	path := r.URL.Path
+	if path == "/v2/time/calendar/import" || strings.HasPrefix(path, "/v2/time/period/") {
+		return s.timeCloseAPI(p, r)
+	}
 	switch {
 	case path == "/v2/time/adapter/state" && r.Method == "GET":
 		if !role(p, "HR", "ADMIN") {
