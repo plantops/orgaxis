@@ -402,6 +402,9 @@ func (s *Service) v6API(p *Principal, r *http.Request) (any, error) {
 	if e != nil {
 		return nil, e
 	}
+	if strings.HasPrefix(path, "/v2/time/") {
+		return s.attendanceAPI(p, r)
+	}
 	switch {
 	case path == "/v2/org/full" && r.Method == "GET":
 		return s.orgFull(date, r.URL.Query().Get("unit"), r.URL.Query().Get("team"))
