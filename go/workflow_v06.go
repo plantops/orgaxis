@@ -135,6 +135,10 @@ func (s *Service) openV6Case(p *Principal, r *http.Request) (any, error) {
 		return nil, e
 	}
 	kind := strings.ToUpper(strings.TrimSpace(v.Type))
+	// Keep Chinfon Kaizen as the sole idea/reward ledger when linked.
+	if kind == "BONUS" && kaizenExternalConfiguredV12() {
+		return nil, fail(409, "Sang kien / thuong thuoc Chinfon Kaizen 360; OrgAxis legacy BONUS is read-only")
+	}
 	if !in(kind, "LEAVE", "BONUS", "DISCIPLINE") {
 		return nil, fail(422, "Invalid case type")
 	}
@@ -411,6 +415,8 @@ func (s *Service) v6API(p *Principal, r *http.Request) (any, error) {
 			return nil, fail(403, "Module inventory permission required")
 		}
 		return moduleInventoryV11(r)
+	case path == "/v2/kaizen/launch" && r.Method == "GET":
+		return kaizenLaunchV12()
 	case path == "/v2/org/full" && r.Method == "GET":
 		return s.orgFull(date, r.URL.Query().Get("unit"), r.URL.Query().Get("team"))
 	case path == "/v2/cases" && r.Method == "GET":
