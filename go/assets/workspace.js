@@ -119,7 +119,8 @@ async function modulesCatalog(){
 async function kaizenWorkspace(){
   const status=await request('/v2/kaizen/launch');
   const set=status.status==='CONFIGURED_UNVERIFIED';
-  const link=set?'<a class="btn primary" target="_blank" rel="noopener noreferrer" href="'+esc(status.url)+'">Mở Chinfon Kaizen 360</a>':'<div class="notice warn">Chưa cấu hình ORGAXIS_KAIZEN_URL. Không có liên kết đến một hệ thống sản xuất đã xác minh.</div>';
+  const problems=(status.missing||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
+  const link=set?'<a class="btn primary" target="_blank" rel="noopener noreferrer" href="'+esc(status.url)+'">Mở Chinfon Kaizen 360</a>':'<div class="notice warn">'+(status.status==='BLOCKED_PREREQUISITES'?'Thiếu xác nhận phụ thuộc trước khi mở module:':'Chưa cấu hình ORGAXIS_KAIZEN_URL. Không có liên kết đến hệ thống sản xuất đã xác minh.')+'</div>'+(problems?'<ul>'+problems+'</ul>':'');
   const dependencies=table(['Phân hệ','Maturity kỹ thuật','Điều kiện dữ liệu thực'],[
     '<tr><td><strong>ORG-03 · Position & Reporting</strong></td><td>3/5 · synthetic</td><td>Đối chiếu tuyến báo cáo và quyền duyệt theo mã vị trí/ngày hiệu lực</td></tr>',
     '<tr><td><strong>PERSON-01 · Hồ sơ nhân sự</strong></td><td>3/5 · synthetic</td><td>Nhân viên thật, mã không trùng, không lấy DEMO-LOGIN làm nguồn</td></tr>',
