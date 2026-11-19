@@ -24,10 +24,10 @@ async function signIn(ev){ev.preventDefault();$('loginError').textContent='';try
 async function init(){try{viewer=await request('/auth/me');$('signin').classList.add('hidden');$('shell').classList.remove('hidden');$('rolePill').textContent=viewer.role+' · '+viewer.person_id;await render()}catch(e){viewer=null;$('signin').classList.remove('hidden');$('shell').classList.add('hidden')}}
 async function signout(){try{await request('/auth/logout',{method:'POST',body:'{}'})}catch{}viewer=null;$('shell').classList.add('hidden');$('signin').classList.remove('hidden');$('password').value=''}
 async function loadOrg(){allOrg=await request('/v2/org/full?as_of='+encodeURIComponent(asof));return allOrg}
-async function render(){let titles={overview:'Tổng quan',org:'Sơ đồ tổ chức',leave:'Nghỉ phép & phê duyệt',bonus:'Khen thưởng',discipline:'Kỷ luật',payroll:'Lương, Thưởng & Thuế',security:'RBAC & Bảo mật'};
+async function render(){let titles={overview:'Tổng quan',org:'Sơ đồ tổ chức',leave:'Nghỉ phép & phê duyệt',bonus:'Khen thưởng',discipline:'Kỷ luật',payroll:'Lương, Thưởng & Thuế',security:'RBAC & Bảo mật',modules:'Module Inventory · v0.11'};
   $('currentSection').textContent=titles[view];document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
   $('content').innerHTML='<div class="panel">Đang đọc dữ liệu OrgAxis...</div>';
-  try{const html=await ({overview,org:organization,leave:()=>caseView('LEAVE'),bonus:()=>caseView('BONUS'),discipline:()=>caseView('DISCIPLINE'),payroll,security}[view])();$('content').innerHTML=html}catch(e){$('content').innerHTML=panel('Không thể tải','',`<p class="notice warn">${esc(e.message)}</p>`)}
+  try{const html=await ({overview,org:organization,leave:()=>caseView('LEAVE'),bonus:()=>caseView('BONUS'),discipline:()=>caseView('DISCIPLINE'),payroll,security,modules:modulesCatalog}[view])();$('content').innerHTML=html}catch(e){$('content').innerHTML=panel('Không thể tải','',`<p class="notice warn">${esc(e.message)}</p>`)}
 }
 async function overview(){const org=await loadOrg();const c=await request('/v2/cases');let counts={};for(const p of org.people){counts[p.unit_code]=(counts[p.unit_code]||0)+1}
  let groups=Object.entries(counts).sort((a,b)=>b[1]-a[1]);return subtitle('Nhân sự, cơ cấu và thẩm quyền','Dữ liệu thực từ SQLite demo. Mọi tuyến báo cáo có hiệu lực tại ngày '+asof)+
@@ -98,3 +98,20 @@ document.addEventListener('submit',async ev=>{if(ev.target.id==='loginForm'){awa
  if(ev.target.id==='policyForm'){ev.preventDefault();let v=Object.fromEntries(new FormData(ev.target));v.direct_days=Number(v.direct_days);v.hr_days=Number(v.hr_days);try{await request('/v2/policies',{method:'POST',body:JSON.stringify(v)});await render()}catch(e){alertErr(e)}return}
  if(ev.target.id==='decisionForm'){ev.preventDefault();let v=Object.fromEntries(new FormData(ev.target));try{await request('/v2/cases/'+encodeURIComponent(ev.target.dataset.id)+'/decision',{method:'POST',body:JSON.stringify(v)});closeModal();await render()}catch(e){$('decisionFormError').textContent=e.message}}});
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});init();
+
+async function modulesCatalog(){
+ const data=await request('/v2/modules');
+ const labels={operational_demo:'Chạy trên dữ liệu demo',partial_demo:'Một phần / demo',design_only:'Mới có đặc tả',not_implemented:'Chưa hiện thực'};
+ const groups=Object.keys(data.groups);
+ const list=data.modules||[];
+ const summary=`<div class="metrics">${metric('Module',num(data.count),'Cập nhật từ catalog mã nguồn')}${metric('Maturity TB',Number(data.average_maturity).toFixed(2)+' / 5','Không phải điểm AppGate')}${metric('Có code',num(list.filter(m=>m.status==='operational_demo'||m.status==='partial_demo').length),'Chưa chứng minh UAT thực tế')}${metric('Design / missing',num(list.filter(m=>m.status==='design_only'||m.status==='not_implemented').length),'Không gán là đã chạy')}</div>`;
+ const panels=groups.map(group=>{
+   const items=list.filter(m=>m.group===group);
+   if(!items.length)return '';
+   const avg=(items.reduce((sum,m)=>sum+Number(m.maturity),0)/items.length).toFixed(2);
+   const rows=items.map(m=>`<tr><td><strong>${esc(m.id)}</strong><br><small>${esc(m.name)}</small></td><td><b>${Number(m.maturity).toFixed(1)}/5</b></td><td>${esc(labels[m.status]||m.status)}</td><td>${esc(m.functions.join(' · '))}</td><td><small>${esc(m.gaps.join('; '))}</small></td></tr>`);
+   return panel(esc(data.groups[group])+' · '+esc(group),items.length+' module · maturity trung bình '+avg+'/5',table(['MODULE','MỨC','TRẠNG THÁI','FUNCTION HIỆN CÓ / DỰ KIẾN','GAP'],rows));
+ }).join('');
+ return subtitle('Kiểm kê module · OrgAxis v0.11','35 module / 11 nhóm · điểm maturity 0–5 theo bằng chứng source, không phải đánh giá AppGate chính thức.')+
+ summary+panel('Giới hạn đánh giá','',`<div class="notice warn">Chỉ dùng dữ liệu synthetic. Chưa có independent AppGate UAT. Chức năng có đặc tả không được coi là chức năng đã chạy. Điểm 3/5 không chứng minh tính đúng trên thiết bị hoặc dữ liệu nhân sự thực.</div><p class="muted">Baseline: ${esc(data.baseline)} · v${esc(data.version)}</p>`)+panels;
+}
