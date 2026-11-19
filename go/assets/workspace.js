@@ -24,10 +24,10 @@ async function signIn(ev){ev.preventDefault();$('loginError').textContent='';try
 async function init(){try{viewer=await request('/auth/me');$('signin').classList.add('hidden');$('shell').classList.remove('hidden');$('rolePill').textContent=viewer.role+' · '+viewer.person_id;const moduleNav=document.querySelector('#nav button[data-view="modules"]');if(moduleNav)moduleNav.style.display=['ADMIN','HR','DIRECTOR'].includes(viewer.role)?'':'none';await render()}catch(e){viewer=null;$('signin').classList.remove('hidden');$('shell').classList.add('hidden')}}
 async function signout(){try{await request('/auth/logout',{method:'POST',body:'{}'})}catch{}viewer=null;$('shell').classList.add('hidden');$('signin').classList.remove('hidden');$('password').value=''}
 async function loadOrg(){allOrg=await request('/v2/org/full?as_of='+encodeURIComponent(asof));return allOrg}
-async function render(){let titles={overview:'Tổng quan',org:'Sơ đồ tổ chức',leave:'Nghỉ phép & phê duyệt',bonus:'Khen thưởng',discipline:'Kỷ luật',payroll:'Lương, Thưởng & Thuế',security:'RBAC & Bảo mật',modules:'Module Inventory · v0.11'};
+async function render(){let titles={overview:'Tổng quan',org:'Sơ đồ tổ chức',leave:'Nghỉ phép & phê duyệt',bonus:'Khen thưởng (legacy)',kaizen:'Sáng kiến & Thưởng Kaizen 360',discipline:'Kỷ luật',payroll:'Lương, Thưởng & Thuế',security:'RBAC & Bảo mật',modules:'Module Inventory · v0.11'};
   $('currentSection').textContent=titles[view];document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
   $('content').innerHTML='<div class="panel">Đang đọc dữ liệu OrgAxis...</div>';
-  try{const html=await ({overview,org:organization,leave:()=>caseView('LEAVE'),bonus:()=>caseView('BONUS'),discipline:()=>caseView('DISCIPLINE'),payroll,security,modules:modulesCatalog}[view])();$('content').innerHTML=html}catch(e){$('content').innerHTML=panel('Không thể tải','',`<p class="notice warn">${esc(e.message)}</p>`)}
+  try{const html=await ({overview,org:organization,leave:()=>caseView('LEAVE'),bonus:()=>caseView('BONUS'),kaizen:kaizenWorkspace,discipline:()=>caseView('DISCIPLINE'),payroll,security,modules:modulesCatalog}[view])();$('content').innerHTML=html}catch(e){$('content').innerHTML=panel('Không thể tải','',`<p class="notice warn">${esc(e.message)}</p>`)}
 }
 async function overview(){const org=await loadOrg();const c=await request('/v2/cases');let counts={};for(const p of org.people){counts[p.unit_code]=(counts[p.unit_code]||0)+1}
  let groups=Object.entries(counts).sort((a,b)=>b[1]-a[1]);return subtitle('Nhân sự, cơ cấu và thẩm quyền','Dữ liệu thực từ SQLite demo. Mọi tuyến báo cáo có hiệu lực tại ngày '+asof)+
@@ -112,6 +112,22 @@ async function modulesCatalog(){
    const rows=items.map(m=>`<tr><td><strong>${esc(m.id)}</strong><br><small>${esc(m.name)}</small></td><td><b>${Number(m.maturity).toFixed(1)}/5</b></td><td>${esc(labels[m.status]||m.status)}</td><td>${esc(m.functions.join(' · '))}</td><td><small>${esc(m.gaps.join('; '))}</small></td></tr>`);
    return panel(esc(data.groups[group])+' · '+esc(group),items.length+' module · maturity trung bình '+avg+'/5',table(['MODULE','MỨC','TRẠNG THÁI','FUNCTION HIỆN CÓ / DỰ KIẾN','GAP'],rows));
  }).join('');
- return subtitle('Kiểm kê module · OrgAxis v0.11','35 module / 11 nhóm · điểm maturity 0–5 theo bằng chứng source, không phải đánh giá AppGate chính thức.')+
+ return subtitle('Kiểm kê module · OrgAxis v0.12',''+data.count+' module / 11 nhóm · điểm maturity 0–5 theo bằng chứng source, không phải đánh giá AppGate chính thức.')+
  summary+panel('Giới hạn đánh giá','',`<div class="notice warn">Chỉ dùng dữ liệu synthetic. Chưa có independent AppGate UAT. Chức năng có đặc tả không được coi là chức năng đã chạy. Điểm 3/5 không chứng minh tính đúng trên thiết bị hoặc dữ liệu nhân sự thực.</div><p class="muted">Baseline: ${esc(data.baseline)} · v${esc(data.version)}</p>`)+panels;
+}
+
+async function kaizenWorkspace(){
+  const status=await request('/v2/kaizen/launch');
+  const set=status.status==='CONFIGURED_UNVERIFIED';
+  const link=set?'<a class="btn primary" target="_blank" rel="noopener noreferrer" href="'+esc(status.url)+'">Mở Chinfon Kaizen 360</a>':'<div class="notice warn">Chưa cấu hình ORGAXIS_KAIZEN_URL. Không có liên kết đến một hệ thống sản xuất đã xác minh.</div>';
+  const dependencies=table(['Phân hệ','Maturity kỹ thuật','Điều kiện dữ liệu thực'],[
+    '<tr><td><strong>ORG-03 · Position & Reporting</strong></td><td>3/5 · synthetic</td><td>Đối chiếu tuyến báo cáo và quyền duyệt theo mã vị trí/ngày hiệu lực</td></tr>',
+    '<tr><td><strong>PERSON-01 · Hồ sơ nhân sự</strong></td><td>3/5 · synthetic</td><td>Nhân viên thật, mã không trùng, không lấy DEMO-LOGIN làm nguồn</td></tr>',
+    '<tr><td><strong>TALENT-04 · Kaizen 360</strong></td><td>2.5/5 · pilot</td><td>Ứng dụng riêng, dữ liệu thật được HR xác minh, công thức thưởng & phân quyền được duyệt</td></tr>'
+  ]);
+  return subtitle('Sáng kiến & Thưởng · Kaizen 360','Một module độc lập sử dụng repository ngtrthanh/chinfon-kaizen, không dùng ledger BONUS demo trong OrgAxis.')+
+    panel('Khởi chạy Kaizen','Xác thực Kaizen riêng; không truyền mật khẩu, phiên đăng nhập hoặc dữ liệu nhân sự qua URL.',link+
+      '<p class="muted">'+esc(status.warning||'')+'</p>')+
+    panel('Ba dependency P0','Kết nối giao diện không đồng nghĩa đã có dữ liệu thực hoặc UAT.',dependencies)+
+    panel('Giới hạn triển khai','', '<div class="notice warn">ORG-03/PERSON-01 hiện là dữ liệu synthetic. Không bật payroll/export hoặc nạp hồ sơ nhân sự thật vào bản OrgAxis demo. Kaizen phải được MIS và HR nghiệm thu độc lập trước khi chạy production.</div>');
 }
