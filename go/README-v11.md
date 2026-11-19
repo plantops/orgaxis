@@ -7,7 +7,7 @@
 ## Additions
 
 - 35 source-reviewed modules in 11 business/platform groups, each with name, purpose, function list, /5 maturity, implementation status, source evidence, open gaps.
-- `GET /v2/modules`, signed-in session only, read-only:
+- `GET /v2/modules`, signed-in ADMIN/HR/DIRECTOR session only, read-only:
   - `GET /v2/modules?group=ORG`
   - `GET /v2/modules?group=WFM&status=design_only`
 - HR Workspace `/workspace` sidebar > **Module Inventory · v0.11**. Shows grouped full list and overview average.
@@ -40,7 +40,7 @@ node --check assets/workspace.js
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o OrgAxisServer.exe .
 ```
 
-Passing CI proves source/build checks on a simulated pilot only. Windows native GUI/tray/service testing remains pending.
+At this commit, GitHub Actions jobs have failed before recording executable steps; the v0.11 test/build result is **not verified**. The preceding v0.9 commit passed CI on 2026-11-18. Once runner execution is restored, rerun checks. Passing CI would still only prove source/build checks on a synthetic pilot; Windows native GUI/tray/service testing remains pending.
 
 ## Next engineering slices
 
