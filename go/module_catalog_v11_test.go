@@ -12,7 +12,9 @@ func TestV11ModuleCatalogAuthAndCoverage(t *testing.T) {
   unauth:=call(v.service,"GET","/v2/modules","",nil,false)
   if unauth.Code!=401 {t.Fatalf("unauthed catalog returned %d",unauth.Code)}
   employee:=signin(t,v,"employee")
-  x:=call(v.service,"GET","/v2/modules","",employee,false)
+  if denied:=call(v.service,"GET","/v2/modules","",employee,false);denied.Code!=403 {t.Fatalf("employee inventory scope: %d",denied.Code)}
+  admin:=signin(t,v,"admin")
+  x:=call(v.service,"GET","/v2/modules","",admin,false)
   if x.Code!=200 {t.Fatalf("catalog: %d %s",x.Code,x.Body.String())}
   data:=obj(t,x.Body.Bytes())
   if data["appgate_assessment"]!="NOT_ASSESSED" || data["catalog_type"]!="source_review" {
@@ -40,12 +42,12 @@ func TestV11ModuleCatalogAuthAndCoverage(t *testing.T) {
 
 func TestV11CatalogFiltersAndNoFalsePromotion(t *testing.T) {
   v:=secured(t)
-  employee:=signin(t,v,"employee")
+  admin:=signin(t,v,"admin")
   for _,path:=range []string{"/v2/modules?group=BAD","/v2/modules?status=uat_pass"} {
-    x:=call(v.service,"GET",path,"",employee,false)
+    x:=call(v.service,"GET",path,"",admin,false)
     if x.Code!=422 {t.Fatalf("%s accepted: %d",path,x.Code)}
   }
-  x:=call(v.service,"GET","/v2/modules?group=WFM&status=design_only","",employee,false)
+  x:=call(v.service,"GET","/v2/modules?group=WFM&status=design_only","",admin,false)
   if x.Code!=200 {t.Fatalf("filter: %s",x.Body)}
   var payload struct {Count int `json:"count"`;Modules []moduleV11 `json:"modules"`}
   if e:=json.Unmarshal(x.Body.Bytes(),&payload);e!=nil {t.Fatal(e)}
