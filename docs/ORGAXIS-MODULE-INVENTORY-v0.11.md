@@ -1,7 +1,7 @@
 # OrgAxis v0.11 — Kiểm kê đầy đủ module, function và maturity /5
 
 Ngày snapshot: 2026-11-19. Baseline: v0.10 design `475b2c977f18cb8e505d803eecd94c7f025f3c4a`. V0.11 adds the catalog API, secure workspace inventory view and tests; it **does not** implement missing business domains.
-Source registry: `go/module_catalog_v11.go`. API: authenticated `GET /v2/modules`; optional `group=ORG|PERSON|TALENT|FLOW|WFM|PAY|SEC|INT|PLAT|UX|GATE`, `status=operational_demo|partial_demo|design_only|not_implemented`.
+Source registry: `go/module_catalog_v11.go`. API: ADMIN/HR/DIRECTOR authenticated `GET /v2/modules`; optional `group=ORG|PERSON|TALENT|FLOW|WFM|PAY|SEC|INT|PLAT|UX|GATE`, `status=operational_demo|partial_demo|design_only|not_implemented`.
 
 ## Scope and score interpretation
 
@@ -356,9 +356,9 @@ Gap: Actual signed assessment, evidence coverage, all hard gates.
 ## v0.11 delivered (source-scope only)
 
 1. Maintainable single-source Go module catalog containing group, maturity, status, function list, evidence and gaps; 35 entries in 11 groups.
-2. Authenticated read-only API `GET /v2/modules`, accessible to signed-in demo users, no personal salary/HR records exposed; invalid group/status gives HTTP 422.
+2. Role-scoped read-only API `GET /v2/modules`, accessible only to authenticated ADMIN/HR/DIRECTOR demo users, no personal salary/HR records exposed; invalid group/status gives HTTP 422.
 3. HR Workspace nav "Module Inventory · v0.11"; overview counts, mean maturity and all 11 grouped tables.
-4. Linux CGO automated tests check auth, shape, IDs, filter semantics, missing critical modules, score bounds and no false promotion of design-only functionality.
+4. Linux CGO automated tests (added but not yet re-executed successfully in CI) check auth, shape, IDs, filter semantics, missing critical modules, score bounds and no false promotion of design-only functionality.
 5. Documentation explicitly separates engineering maturity from 49-criterion AppGate UAT scoring.
 
 ## P0 — Functional reliability and source-of-truth
@@ -380,4 +380,4 @@ Gap: Actual signed assessment, evidence coverage, all hard gates.
 
 ## Non-goals in this v0.11 changeset
 
-No SQLite business schema migrations, import of actual PII, hourly payroll engine, new approval workflow, roster solver, native device integration, or independent UAT. No production readiness claims. Existing synthetic data remains unchanged.
+CI v0.11 at this commit is NOT verified: GitHub Actions jobs end almost immediately without executable steps/logs; failure cause not established. No SQLite business schema migrations, import of actual PII, hourly payroll engine, new approval workflow, roster solver, native device integration, or independent UAT. No production readiness claims. Existing synthetic data remains unchanged.
