@@ -120,3 +120,7 @@ Mappings: BIZ-01/02/03/04/06; DAT-01/02/03/06; SEC-02/04/05; INT-01/02/05; UX-01
 - https://github.com/anthropics/knowledge-work-plugins/blob/main/human-resources/.mcp.json
 - https://github.com/anthropics/knowledge-work-plugins/blob/main/LICENSE
 - Nine individual `human-resources/skills/*/SKILL.md` files inspected on 2026-11-19
+
+## Related user-supplied KB (2026-11-19)
+
+OrgAxis also preserves a complete user-supplied reference on mixed-workforce onboarding/2FA: [`docs/kb/ONBOARDING-IDENTITY-2FA-MULTI-WORKFORCE-SOURCE.md`](kb/ONBOARDING-IDENTITY-2FA-MULTI-WORKFORCE-SOURCE.md). The separate engineering/security review is [`docs/kb/ONBOARDING-IDENTITY-2FA-ORGAXIS-INTEGRATION.md`](kb/ONBOARDING-IDENTITY-2FA-ORGAXIS-INTEGRATION.md). This covers workers without email/phone, TOTP, supervised enrollment, kiosk, proxy and actor/subject audit. The supplied source proposes a date-of-birth-based first password and static QR login; both are rejected as standalone authentication designs. No existing module score is upgraded.
