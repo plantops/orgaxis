@@ -43,3 +43,7 @@ Day 1: source freeze, CI, actual HR extract/review, OrgAxis manager graph signof
 Day 2: HR/MIS UAT on distinct worker/supervisor/manager/council/HR roles; valid and denied endpoints; actual initiative path, evidence, reward review vs spreadsheet and payroll CSV. If any hard gate missing: internal pilot only, no authoritative release.
 
 **CURRENT VERDICT: NOT GO-LIVE APPROVED.** Real HR data and hosting/production UAT are outside current source access; evidence cannot be fabricated. Source readiness and code tests do not substitute for company operations.
+
+## Launcher security gate
+
+The external URL alone does not unlock the production-looking Kaizen entry. `GET /v2/kaizen/launch` needs validated HTTPS/loopback AND nonempty references `ORGAXIS_P0_ORG_APPROVAL_REF`, `ORGAXIS_P0_PERSON_APPROVAL_REF`, `ORGAXIS_P0_KAIZEN_APPROVAL_REF` (at least six characters). When missing: `BLOCKED_PREREQUISITES`, no URL; a configured valid link still fences legacy BONUS writes. References are operator assertions; independent review and attached signed evidence remain necessary. There is no automatic remote endpoint/SSOT confirmation.
