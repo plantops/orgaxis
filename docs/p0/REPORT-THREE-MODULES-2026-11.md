@@ -82,3 +82,14 @@ There was **no proper Recruitment/ATS module** in the 35-module v0.11 inventory;
 5. Independent security/AppGate reviewer: evidence, open findings, signed verdict.
 
 **This document is not evidence of actual company deployment.**
+
+## Controlled Kaizen launcher configuration (new P0 gate)
+
+```text
+ORGAXIS_KAIZEN_URL=https://<approved-company-endpoint>
+ORGAXIS_P0_ORG_APPROVAL_REF=<signed-HR-org-reference>
+ORGAXIS_P0_PERSON_APPROVAL_REF=<signed-HR-employee-reference>
+ORGAXIS_P0_KAIZEN_APPROVAL_REF=<signed-MIS-finance-UAT-reference>
+```
+
+Until all three approval-reference values are configured, the OrgAxis Kaizen launcher responds `BLOCKED_PREREQUISITES` and does not return a clickable URL. Setting text variables does **not** make the underlying documents verified or transform the synthetic OrgAxis DB into a live one. Existing legacy BONUS submissions are fenced as soon as a valid Kaizen endpoint is configured, even while launcher is blocked. No cloud SSO integration exists.
