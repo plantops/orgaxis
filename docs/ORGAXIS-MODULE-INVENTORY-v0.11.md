@@ -381,3 +381,9 @@ Gap: Actual signed assessment, evidence coverage, all hard gates.
 ## Non-goals in this v0.11 changeset
 
 CI v0.11 at this commit is NOT verified: GitHub Actions jobs end almost immediately without executable steps/logs; failure cause not established. No SQLite business schema migrations, import of actual PII, hourly payroll engine, new approval workflow, roster solver, native device integration, or independent UAT. No production readiness claims. Existing synthetic data remains unchanged.
+
+## KB intake addendum: onboarding, identity, 2FA for mixed workforce (2026-11-19)
+
+New knowledge-base source: [`docs/kb/ONBOARDING-IDENTITY-2FA-MULTI-WORKFORCE-SOURCE.md`](kb/ONBOARDING-IDENTITY-2FA-MULTI-WORKFORCE-SOURCE.md), preserved unchanged. Security adaptation and implementation backlog: [`docs/kb/ONBOARDING-IDENTITY-2FA-ORGAXIS-INTEGRATION.md`](kb/ONBOARDING-IDENTITY-2FA-ORGAXIS-INTEGRATION.md).
+
+Mapping: `SEC-01` identity/MFA enrollment and recovery; `SEC-02` actor/subject audit; `PERSON-02` employee onboarding; `FLOW-01` supervised delegation; `UX-01` non-email/smartphone kiosk flows; `PLAT-02` SQLite migration; AppGate SEC/DAT/GOV security gates. The KB contains proposals, not executable features; prior maturity scores and mean **2.14/5** remain unchanged. DOB-based default password and static QR as sole sign-in method are **not approved**.
