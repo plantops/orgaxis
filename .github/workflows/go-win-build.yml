@@ -53,9 +53,11 @@ jobs:
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o OrgAxisServer.exe .
       - uses: actions/upload-artifact@v4
         with:
-          name: OrgAxis-Windows10-v09-P0
+          name: OrgAxis-Windows10-v11-Module-Catalog
           path: |
             go/OrgAxis.exe
             go/OrgAxisServer.exe
             go/README-v08.md
             go/README-v09.md
+            go/README-v11.md
+            docs/ORGAXIS-MODULE-INVENTORY-v0.11.md
