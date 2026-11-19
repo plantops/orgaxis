@@ -406,6 +406,11 @@ func (s *Service) v6API(p *Principal, r *http.Request) (any, error) {
 		return s.attendanceAPI(p, r)
 	}
 	switch {
+	case path == "/v2/modules" && r.Method == "GET":
+		if !role(p, "ADMIN", "HR", "DIRECTOR") {
+			return nil, fail(403, "Module inventory permission required")
+		}
+		return moduleInventoryV11(r)
 	case path == "/v2/org/full" && r.Method == "GET":
 		return s.orgFull(date, r.URL.Query().Get("unit"), r.URL.Query().Get("team"))
 	case path == "/v2/cases" && r.Method == "GET":
