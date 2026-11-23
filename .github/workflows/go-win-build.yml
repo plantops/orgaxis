@@ -1,0 +1,40 @@
+name: Go Windows x64
+on:
+  push:
+    paths:
+      - 'go/**'
+      - '.github/workflows/go-win-build.yml'
+  pull_request:
+    paths:
+      - 'go/**'
+      - '.github/workflows/go-win-build.yml'
+jobs:
+  windows-binary:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+      - name: Generate embedded synthetic seed
+        run: |
+          ORGAXIS_TENANT_ID=tenant-cfc-pilot \
+          ORGAXIS_SEED_PROFILE=single_company \
+          ORGAXIS_TENANT_CODE=CFCPILOT \
+          ORGAXIS_TENANT_NAME="Cement Factory Pilot Tenant" \
+          ORGAXIS_DEMO_COMPANY_CODE=CFCPILOT \
+          ORGAXIS_DEMO_COMPANY_NAME="Cement Factory Pilot (SYNTHETIC)" \
+          python3 ../seed.py --db assets/seed.sqlite3
+      - name: Prepare SQLite headers for CGO tests
+        run: sudo apt-get update -qq && sudo apt-get install -y libsqlite3-dev pkg-config
+      - name: Test Go API (Linux)
+        run: go test ./...
+      - name: Cross-compile Windows 10 x64
+        run: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o OrgAxis-Windows10-x64.exe .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OrgAxis-Windows10-x64
+          path: go/OrgAxis-Windows10-x64.exe
