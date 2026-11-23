@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -140,6 +141,8 @@ func (l *RotatingLog) Tail(lines int) ([]string, error) {
 	return ss, nil
 }
 
+type lanAuthenticatedKey struct{}
+
 // LAN mode is a separate read-only TLS listener. It never serves the full HR UI or writes.
 var lanPaths = map[string]bool{
 	"/v1/org/blank": true, "/v1/org/occupied": true,
@@ -172,7 +175,7 @@ func lanHandler(local http.Handler, token string, apiKey string) http.Handler {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-		rr := r.Clone(r.Context())
+		rr := r.Clone(context.WithValue(r.Context(), lanAuthenticatedKey{}, true))
 		rr.Header = rr.Header.Clone()
 		// This trusted internal header is created only after separate LAN token validation.
 		rr.Header.Set("X-API-Key", apiKey)

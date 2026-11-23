@@ -29,12 +29,13 @@ const tenantID = "tenant-cfc-pilot"
 const todayFallback = "2026-11-18"
 
 type Service struct {
-	db      SQLiteDB
-	mu      sync.Mutex
-	key     string
-	port    int
-	logfile *RotatingLog
-	started time.Time
+	db         SQLiteDB
+	mu         sync.Mutex
+	key        string
+	port       int
+	logfile    *RotatingLog
+	started    time.Time
+	secureDemo bool
 }
 type APIError struct {
 	Status  int
@@ -98,7 +99,25 @@ func handleError(w http.ResponseWriter, e error) {
 	response(w, 500, map[string]any{"detail": "Internal server error"})
 }
 func (s *Service) api(w http.ResponseWriter, r *http.Request, fn func() (any, error)) {
-	if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-API-Key")), []byte(s.key)) != 1 {
+	if s.secureDemo {
+		if r.Context().Value(lanAuthenticatedKey{}) != true {
+			s.mu.Lock()
+			p, e := s.principal(r)
+			s.mu.Unlock()
+			if e != nil {
+				handleError(w, e)
+				return
+			}
+			if !role(p, "ADMIN") {
+				response(w, 403, map[string]any{"detail": "Legacy v1 API restricted to ADMIN; use scoped /v2 endpoints"})
+				return
+			}
+			if r.Method != "GET" && r.Header.Get("X-CSRF-Token") != p.CSRF {
+				response(w, 403, map[string]any{"detail": "CSRF required"})
+				return
+			}
+		}
+	} else if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-API-Key")), []byte(s.key)) != 1 {
 		response(w, 401, map[string]any{"detail": "Invalid API key"})
 		return
 	}
@@ -592,7 +611,44 @@ func (s *Service) routes() http.Handler {
 		w.Write(b)
 	})
 	mux.HandleFunc("GET /{$}", page("hero.html"))
-	mux.HandleFunc("GET /app", page("index.html"))
+	mux.HandleFunc("GET /app", func(w http.ResponseWriter, r *http.Request) {
+		if s.secureDemo {
+			http.Redirect(w, r, "/workspace", http.StatusSeeOther)
+			return
+		}
+		page("index.html")(w, r)
+	})
+	mux.HandleFunc("GET /legacy", func(w http.ResponseWriter, r *http.Request) {
+		if s.secureDemo {
+			s.mu.Lock()
+			p, e := s.principal(r)
+			s.mu.Unlock()
+			if e != nil {
+				handleError(w, e)
+				return
+			}
+			if !role(p, "ADMIN") {
+				http.Error(w, "Admin legacy view only", 403)
+				return
+			}
+		}
+		page("index.html")(w, r)
+	})
+	mux.HandleFunc("GET /workspace", page("workspace.html"))
+	mux.HandleFunc("GET /assets/workspace.css", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := builtIn.ReadFile("assets/workspace.css")
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		_, _ = w.Write(b)
+	})
+	mux.HandleFunc("GET /assets/workspace.js", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := builtIn.ReadFile("assets/workspace.js")
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		_, _ = w.Write(b)
+	})
+	s.authRoutes(mux)
+	mux.HandleFunc("/v2/", func(w http.ResponseWriter, r *http.Request) {
+		s.protected(w, r, func(p *Principal) (any, error) { return s.v6API(p, r) })
+	})
 	mux.HandleFunc("GET /docs", page("docs.html"))
 	mux.HandleFunc("GET /logs", page("logs.html"))
 	mux.HandleFunc("GET /v1/system/status", func(w http.ResponseWriter, r *http.Request) {
