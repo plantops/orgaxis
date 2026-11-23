@@ -5,6 +5,7 @@
 <title>OrgAxis Workspace — Workforce Intelligence</title>
 <meta name="color-scheme" content="light">
 <link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="/assets/revamp.css">
 </head>
 <body>
 <div class="shell">
@@ -26,9 +27,11 @@
       <button class="nav-link" data-view="recognition"><span class="nav-ico">✧</span><span>Khen thưởng</span></button>
       <button class="nav-link" data-view="discipline"><span class="nav-ico">▧</span><span>Hồ sơ kỷ luật</span></button>
       <button class="nav-link" data-view="occupational"><span class="nav-ico">⬡</span><span>Nghề & điều kiện lao động</span></button>
-      <div class="nav-group">PLANNED EXTENSIONS</div>
-      <button class="nav-link" data-view="payroll"><span class="nav-ico">₫</span><span>Lương · BHXH · Thuế</span><span class="nav-extra">RECORD</span></button>
+      <div class="nav-group">COMPENSATION & MOBILITY</div>
+      <button class="nav-link" data-view="payroll"><span class="nav-ico">₫</span><span>Lương · Thưởng · Thuế</span><span class="nav-extra">SIM</span></button>
       <button class="nav-link" data-view="immigration"><span class="nav-ico">◇</span><span>Chuyên gia nước ngoài</span><span class="nav-extra">RECORD</span></button>
+      <div class="nav-group">SYSTEM</div>
+      <a class="nav-link" href="/logs" style="text-decoration:none;display:flex;align-items:center;gap:10px"><span class="nav-ico">≡</span><span>Nhật ký hệ thống</span></a>
     </nav>
     <div class="sidebar-bottom"><div class="local-dot"></div><div><b>LOCAL PILOT</b><span>SQLite · Synthetic data only</span></div><a href="/docs" title="API documentation">↗</a></div>
   </aside>
@@ -41,4 +44,5 @@
 <div id="modalBackdrop" class="modal-backdrop" hidden></div><div id="modal" class="modal" role="dialog" aria-modal="true" hidden></div>
 <div id="toast" class="toast" role="status" hidden></div>
 <script defer src="/assets/app.js"></script>
+<script defer src="/assets/revamp.js"></script>
 </body></html>

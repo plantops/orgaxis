@@ -647,6 +647,12 @@ func (s *Service) moduleAPI(r *http.Request) (any, error) {
 			return nil, e
 		}
 		return s.endEmployment(strings.TrimSuffix(strings.TrimPrefix(p, "/v1/people/"), "/separation"), x.EffectiveDate, x.Reason)
+	case p == "/v1/payroll/workbench" && m == "GET":
+		return s.payrollWorkbench(r)
+	case p == "/v1/payroll/simulate" && m == "GET":
+		return s.payrollTaxSimulation(r)
+	case strings.HasPrefix(p, "/v1/payroll/payslip/") && m == "GET":
+		return s.payrollPayslip(strings.TrimPrefix(p, "/v1/payroll/payslip/"), r.URL.Query().Get("period"))
 	case p == "/v1/payroll/summary" && m == "GET":
 		return s.payrollSummary(r)
 	case p == "/v1/benefits/claims" && m == "GET":
