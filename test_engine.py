@@ -99,3 +99,38 @@ def test_unknown_person_and_future_vacancy(client):
     with engine.connect() as db:
         out=engine._manager_from_position(db,'POS-LOG-OP','2027-01-01')
     assert out['status']=='vacant_supervisor'
+
+def test_tenant_and_company_create(client):
+    t=get(client,'/v1/tenant')
+    assert t['id']=='tenant-demo'
+    c=get(client,'/v1/companies')
+    assert len(c['items'])==3
+    r=client.post('/v1/companies',headers=AUTH,json={
+        'code':'NEWCO','name':'New Synthetic Company','jurisdiction':'VN'})
+    assert r.status_code==201,r.text
+    assert r.json()['tenant_id']=='tenant-demo'
+    assert len(get(client,'/v1/companies')['items'])==4
+    assert client.post('/v1/companies',headers=AUTH,json={
+        'code':'NEWCO','name':'Duplicate Synthetic Company'}).status_code==409
+    assert client.post('/v1/companies',json={
+        'code':'UNAUTH','name':'Unauthorized Company'}).status_code==401
+
+
+def test_ui_root(client):
+    r=client.get('/')
+    assert r.status_code==200
+    assert 'OrgAxis' in r.text
+
+def test_single_company_tenant_seed(tmp_path,monkeypatch):
+    monkeypatch.setenv('ORGAXIS_SEED_PROFILE','single_company')
+    monkeypatch.setenv('ORGAXIS_DEMO_COMPANY_CODE','CFCPILOT')
+    monkeypatch.setenv('ORGAXIS_DEMO_COMPANY_NAME','Cement Factory Pilot (SYNTHETIC)')
+    with engine.connect(tmp_path/'one_company.sqlite3') as db:
+        seed(db)
+        all_companies=engine.companies(db)['items']
+        assert [(e['code'],e['name']) for e in all_companies] == [
+            ('CFCPILOT','Cement Factory Pilot (SYNTHETIC)')]
+        assert db.execute('SELECT COUNT(*) FROM person').fetchone()[0]==1000
+        assert db.execute("SELECT COUNT(*) FROM change_set WHERE domain='org_structure'").fetchone()[0]==2
+        assert db.execute('SELECT COUNT(*) FROM hr_event').fetchone()[0]==80
+        assert engine.manager_for_person(db,'EMP-0030','2026-11-18')['manager']['person_id']=='EMP-0010'

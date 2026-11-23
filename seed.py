@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from engine import connect, setup, TENANT, utc_now
@@ -15,7 +16,9 @@ def seed(con):
         raise RuntimeError('Database already seeded. Use --reset on a DEMO database only.')
     con.execute('BEGIN')
     try:
-        con.execute('INSERT INTO tenant VALUES (?,?,?)', (TENANT,'DEMO','Fictional Cement Group - synthetic data'))
+        con.execute('INSERT INTO tenant VALUES (?,?,?)',
+            (TENANT,os.getenv('ORGAXIS_TENANT_CODE','DEMO'),
+             os.getenv('ORGAXIS_TENANT_NAME','Fictional Cement Group - synthetic data')))
         for name,mode in [
             ('organization','core'),('employment','core'),('workflow','core'),
             ('competency','off'),('training','off'),('performance','off'),
@@ -27,9 +30,12 @@ def seed(con):
             ('LE-CFC','CFC','Demo Cement Manufacturing Co.'),
             ('LE-SVC','SVC','Demo Industrial Services Co.'),
             ('LE-HLD','HLD','Demo Holdings Co.')]
+        if os.getenv('ORGAXIS_SEED_PROFILE','group') == 'single_company':
+            entities = [('LE-CFC', os.getenv('ORGAXIS_DEMO_COMPANY_CODE','CFCPILOT'),
+                         os.getenv('ORGAXIS_DEMO_COMPANY_NAME','Cement Factory Pilot (SYNTHETIC)'))]
         con.executemany('INSERT INTO legal_entity(id,tenant_id,code,name) VALUES (?,?,?,?)',
                         [(id,TENANT,code,name) for id,code,name in entities])
-        for i,child in enumerate(('LE-CFC','LE-SVC')):
+        for i,child in enumerate(('LE-CFC','LE-SVC') if len(entities)>1 else ()):
             con.execute('''INSERT INTO corporate_relationship VALUES (?,?,?,?,?,?,?)''',
                         (f'CORP-{i}',TENANT,'LE-HLD',child,'CONTROL',BASE,None))
         units = [

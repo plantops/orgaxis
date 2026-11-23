@@ -1,19 +1,23 @@
 """API-first temporal org & workflow resolution demo (synthetic data only)."""
 from __future__ import annotations
 import hmac
+import re
 import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import date
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
 from engine import (DomainError, blank_org, chain_for_person, connect,
                     manager_for_person, move_assignment, occupied_org,
-                    reporting_change, workflow_resolve, direct_reports, org_changes)
+                    reporting_change, workflow_resolve, direct_reports, org_changes,
+                    tenant_info, companies, add_company)
 
 # Deliberately block production deployments until real auth/tenant isolation exists.
 if os.getenv('APP_ENV','demo') == 'production':
@@ -50,6 +54,12 @@ def call(fn,*args,**kwargs):
         if 'no such table' in str(e) or 'unable to open' in str(e):
             raise HTTPException(status_code=503,detail='Database not seeded; run seed.py') from e
         raise
+
+
+class CompanyCreate(BaseModel):
+    code: str = Field(min_length=2,max_length=32,pattern=r'^[A-Za-z0-9-]+$')
+    name: str = Field(min_length=2,max_length=200)
+    jurisdiction: str = Field(default='VN',min_length=2,max_length=8)
 
 
 class MoveRequest(BaseModel):
@@ -119,3 +129,23 @@ def get_reports(person_id: str, as_of: date=Query(default_factory=date.today),
 @app.get('/v1/org/changes',dependencies=[Depends(auth)])
 def get_org_changes():
     return call(org_changes)
+
+
+@app.get('/v1/tenant', dependencies=[Depends(auth)])
+def get_tenant():
+    return call(tenant_info)
+
+
+@app.get('/v1/companies', dependencies=[Depends(auth)])
+def get_companies():
+    return call(companies)
+
+
+@app.post('/v1/companies', dependencies=[Depends(auth)], status_code=201)
+def post_company(data: CompanyCreate):
+    return call(add_company,data.code,data.name,data.jurisdiction)
+
+
+@app.get('/', response_class=HTMLResponse, include_in_schema=False)
+def ui():
+    return (Path(__file__).resolve().parent / 'web/index.html').read_text(encoding='utf-8')

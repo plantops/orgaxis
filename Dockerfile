@@ -3,6 +3,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY schema.sql seed.py engine.py api.py ./
+COPY web/ ./web/
 RUN mkdir -p /app/data
 ENV HR_DB_PATH=/app/data/hr.sqlite3
 ENV APP_ENV=demo

@@ -11,7 +11,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv('HR_DB_PATH', str(ROOT / 'demo.sqlite3')))
-TENANT = 'tenant-demo'
+TENANT = os.getenv('ORGAXIS_TENANT_ID', 'tenant-demo')
+if not TENANT or len(TENANT) > 80:
+    raise ValueError('Invalid ORGAXIS_TENANT_ID')
 
 
 def utc_now():
@@ -336,3 +338,37 @@ def direct_reports(con, manager_id, at, limit=100, offset=0):
 def org_changes(con):
     return rows(con, '''SELECT id,title,effective_date,status,scenario
      FROM change_set WHERE tenant_id=? AND domain='org_structure' ORDER BY effective_date,id''', (TENANT,))
+
+
+# Tenant-per-database demo. TENANT is deployment-bound, not supplied by the caller.
+def tenant_info(con):
+    row = one(con, 'SELECT id,code,name FROM tenant WHERE id=?', (TENANT,))
+    if not row:
+        raise DomainError(503, 'Tenant not initialized; run seed.py')
+    return {**row, 'isolation': 'database-per-tenant', 'mode': 'synthetic-demo'}
+
+
+def companies(con):
+    tenant_info(con)
+    return {'tenant_id': TENANT, 'items': rows(con,
+        'SELECT id,code,name,jurisdiction FROM legal_entity WHERE tenant_id=? ORDER BY code', (TENANT,))}
+
+
+def add_company(con, code, name, jurisdiction='VN'):
+    code = code.strip().upper()
+    name = name.strip()
+    jurisdiction = jurisdiction.strip().upper()
+    if not (2 <= len(code) <= 32 and code.replace('-', '').isalnum()):
+        raise DomainError(422, 'Company code must contain 2..32 ASCII letters, digits or hyphen')
+    if not (2 <= len(name) <= 200) or not (2 <= len(jurisdiction) <= 8):
+        raise DomainError(422, 'Invalid company name or jurisdiction')
+    tenant_info(con)
+    with _transaction(con):
+        if one(con, 'SELECT id FROM legal_entity WHERE tenant_id=? AND code=?', (TENANT, code)):
+            raise DomainError(409, 'Company code already exists in tenant')
+        company_id = uid('LE')
+        con.execute('''INSERT INTO legal_entity(id,tenant_id,code,name,jurisdiction)
+                       VALUES (?,?,?,?,?)''',(company_id,TENANT,code,name,jurisdiction))
+        _audit(con,'company.create',company_id,{'code':code,'name':name})
+    return {'id':company_id,'tenant_id':TENANT,'code':code,'name':name,
+            'jurisdiction':jurisdiction,'synthetic_demo':True}
